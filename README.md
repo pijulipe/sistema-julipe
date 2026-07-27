@@ -10,7 +10,7 @@ Trabalho desenvolvido para a matéria de **Projeto Integrador** do curso de **An
 * Erick Joshua Revollo
 * David Lima Alves
 * Gabriel Xavier de Almeida
-* **Marcelo Enrique Korin**
+* Marcelo Enrique Korin
 * Pedro Henrique L. V. Coelho
 * Tiago Bondezan Bazani
 * Yuri Shinnishi de Queiroz Rossi
