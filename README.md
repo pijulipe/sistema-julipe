@@ -6,9 +6,9 @@ Trabalho desenvolvido para a matéria de **Projeto Integrador** do curso de **An
 
 ## 👥 Integrantes do Time
 
+* David Lima Alves
 * Eric Fracassi de Gois
 * Erick Joshua Revollo
-* David Lima Alves
 * Gabriel Xavier de Almeida
 * Marcelo Enrique Korin
 * Pedro Henrique L. V. Coelho

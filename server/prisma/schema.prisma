@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  idCliente       BigInt    @id @default(autoincrement()) @map("id_cliente")
+  nome            String    @db.VarChar(255)
+  telefone        String    @db.VarChar(20)
+  endereco        String?   @db.VarChar(255)
+  numeroEndereco  String?   @map("numero_endereco") @db.VarChar(20)
+  bairro          String?   @db.VarChar(100)
+  pontoReferencia String?   @map("ponto_referencia") @db.VarChar(255)
+  observacoes     String?
+  dataAniversario DateTime? @map("data_aniversario") @db.Date
+  dataCadastro    DateTime  @default(now()) @map("data_cadastro") @db.Timestamptz(6)
+  itemAtivo       Boolean   @default(true) @map("item_ativo")
+  deletadoEm      DateTime? @map("deletado_em") @db.Timestamptz(6)
+
+  @@map("clientes")
+}

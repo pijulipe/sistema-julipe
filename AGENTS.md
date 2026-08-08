@@ -52,13 +52,17 @@ Prisma
 
 ↓
 
+Banco de Dados
+
+PostgreSQL (Supabase)
+
+---
+
 # Banco de Dados
 
-A tecnologia de banco de dados ainda não foi definida.
+O banco de dados oficial do projeto será o PostgreSQL disponibilizado pelo Supabase.
 
-As opções consideradas incluem bancos relacionais, como PostgreSQL ou MySQL.
-
-Nenhuma implementação deve assumir um banco específico até que exista uma decisão oficial do grupo.
+O Supabase será utilizado para hospedagem e gerenciamento da infraestrutura do banco de dados.
 
 O acesso ao banco de dados deve ficar isolado na camada de Repository, permitindo que a tecnologia de persistência seja substituída com o menor impacto possível.
 
@@ -66,19 +70,9 @@ O acesso ao banco de dados deve ficar isolado na camada de Repository, permitind
 
 # Tecnologia de Acesso ao Banco
 
-O ORM, query builder ou driver de banco ainda não foi definido.
+O Prisma será o ORM oficial do projeto.
 
-Possíveis opções incluem:
-
-- Prisma
-- Sequelize
-- TypeORM
-- Drizzle
-- driver nativo do banco, como `pg` ou `mysql2`
-
-A escolha definitiva deve ocorrer somente após a definição do banco de dados.
-
-O assistente não deve instalar nem configurar um ORM sem aprovação explícita do usuário.
+Todo acesso ao banco deverá continuar isolado na camada de Repository. Services e Controllers não devem acessar o Prisma diretamente.
 
 ---
 
@@ -110,7 +104,7 @@ Hospedagem:
 
 ## Banco de Dados
 
-- PostgreSQL
+- PostgreSQL (Supabase)
 
 Hospedagem:
 
@@ -120,13 +114,11 @@ Hospedagem:
 
 ## ORM
 
-O projeto utilizará o Prisma como ORM.
+O projeto utilizará o Prisma como ORM oficial.
 
-O Prisma será responsável pela comunicação entre o backend e o banco PostgreSQL.
+O Prisma Client será utilizado pelos Repositories para a comunicação com o PostgreSQL do Supabase.
 
-Sempre que possível utilizar o Prisma Client.
-
-SQL puro somente quando existir necessidade técnica claramente justificada.
+SQL puro deverá ser utilizado apenas quando existir uma necessidade técnica claramente justificada.
 
 ---
 
@@ -135,13 +127,13 @@ SQL puro somente quando existir necessidade técnica claramente justificada.
 Sempre priorizar as seguintes bibliotecas:
 
 - Express
-- Prisma
 - JWT
 - bcrypt
 - Zod
 - Helmet
 - CORS
 - dotenv
+- Prisma
 
 Evitar adicionar novas dependências quando alguma biblioteca já utilizada resolver o problema.
 
@@ -208,7 +200,7 @@ Middlewares
 
 # Idioma do Projeto
 
-Todo o código deve ser escrito em inglês.
+Todo o código deve ser escrito em português.
 
 Isso inclui:
 
@@ -229,7 +221,7 @@ As mensagens destinadas ao usuário devem permanecer em português.
 Exemplo:
 
 ```js
-const userNotFound = true;
+const usuarioNaoEncontrado = true;
 
 return res.status(404).json({
     message: "Usuário não encontrado."
@@ -358,7 +350,7 @@ Nunca expor:
 
 # Banco de Dados
 
-O banco será modelado em PostgreSQL.
+O banco de dados oficial será PostgreSQL, hospedado e gerenciado pelo Supabase.
 
 O diagrama já existe e será utilizado como referência durante o desenvolvimento.
 
@@ -374,17 +366,17 @@ Evitar duplicação de dados.
 
 # ORM
 
-O Prisma é o ORM oficial do projeto.
+O Prisma será o ORM oficial do projeto e deverá ser utilizado considerando:
 
-Sempre que possível utilizar:
+- compatibilidade com o banco escolhido
+- segurança
+- facilidade de manutenção
+- suporte a migrações
+- desempenho
+- maturidade da tecnologia
+- experiência da equipe
 
-```js
-await prisma.user.findUnique(...)
-```
-
-Evitar SQL puro.
-
-SQL deverá ser utilizado apenas quando oferecer uma vantagem técnica significativa.
+O acesso ao Prisma deve permanecer restrito à camada de Repository.
 
 ---
 
@@ -404,6 +396,93 @@ Exemplos:
 - permissões
 - clientes
 - pagamentos
+
+## Clientes
+
+- O gerente possui acesso total ao módulo de clientes.
+- Funcionários somente podem cadastrar, consultar, alterar ou excluir clientes quando possuírem acesso ao módulo `CLIENTES`.
+- O telefone do cliente é obrigatório, mas pode se repetir em cadastros diferentes, conforme o esquema atual.
+- A exclusão de clientes é lógica: o registro deve ser marcado como inativo e receber a data de exclusão, preservando seu histórico.
+
+## Capacidade de Produção
+
+- A capacidade de produção será controlada por intervalos de horário configuráveis.
+- O gerente poderá definir a duração de cada intervalo e a quantidade máxima de pedidos aceita nele.
+- Exemplo de configuração: no máximo 5 pedidos a cada 30 minutos.
+- Quando o limite de um intervalo for atingido, o sistema não deverá aceitar novos pedidos para esse mesmo intervalo.
+- A configuração deverá permanecer flexível, sem fixar no código a duração do intervalo nem a quantidade máxima de pedidos.
+
+## Decisões representadas pelo esquema atual
+
+O arquivo `schema.sql` representa atualmente as decisões abaixo. Essas decisões deverão ser validadas com a doceria antes de serem tratadas como definitivas caso ainda não tenham sido confirmadas diretamente por ela.
+
+- O banco permite cadastrar mais de um gerente, pois o perfil é atribuído individualmente a cada usuário e não existe restrição de unicidade para o perfil `GERENTE`.
+- O telefone do cliente é obrigatório, mas não é único.
+- Cada cliente possui somente um conjunto de campos de endereço na tabela `clientes`; o modelo atual não permite vários endereços estruturados por cliente.
+- Para clientes, os dados de negócio obrigatórios são nome e telefone.
+- Um mesmo pedido pode conter produtos e combos simultaneamente, embora cada item individual deva referenciar exclusivamente um produto ou um combo.
+- Os preços dos itens são registrados no pedido por meio do campo `preco_unitario`, preservando o preço praticado na venda.
+- O endereço utilizado na venda não é preservado separadamente no pedido; atualmente ele permanece apenas no cadastro do cliente.
+- Cada pedido possui somente um campo textual de forma de pagamento. O modelo atual não representa múltiplas formas de pagamento no mesmo pedido.
+- Os estados de pagamento disponíveis são `PENDENTE`, `PAGO`, `PARCIAL`, `REJEITADO`, `ESTORNADO` e `CANCELADO`.
+- Apesar de existir o estado `PARCIAL`, o banco não possui campos ou registros separados para valor pago e valor restante.
+- O banco possui campos para desconto percentual e desconto em valor, mas não define as regras de aplicação, prioridade ou combinação entre eles.
+- O banco registra a URL de imagens de produtos e de fotos de referência dos pedidos, mas não define o serviço de armazenamento nem as regras de formato e tamanho dos arquivos.
+- A tabela `limites_horario` permite representar intervalos, limite de pedidos, quantidade agendada e bloqueio. A autorização para configurar esses limites deverá ser restrita ao gerente na implementação; a política RLS atual ainda permite escrita a qualquer usuário autenticado.
+
+## Incompatibilidade de permissões a resolver
+
+O esquema atual oferece apenas perfis fixos de acesso (`ADMINISTRADOR`, `GERENTE` e `ATENDENTE`). Ele ainda não representa permissões individuais por módulo, permissões associadas a cargos configuráveis nem a combinação dos dois modelos. Portanto, a decisão sobre o modelo de permissões continua pendente e poderá exigir alteração posterior do banco de dados, mediante aprovação.
+
+---
+
+# Decisões Pendentes com a Doceria
+
+As regras abaixo ainda precisam ser confirmadas com a doceria antes da modelagem definitiva do banco de dados e da implementação dos módulos relacionados.
+
+## Usuários e Permissões
+
+- As permissões dos funcionários serão individuais, associadas a cargos ou combinarão os dois modelos?
+- Será necessário registrar quem criou, editou, cancelou ou alterou o status de cada pedido?
+- Existirá limite de desconto por funcionário ou permissão?
+
+## Pedidos
+
+- Quais transições de status serão permitidas?
+- Um pedido entregue, retirado ou cancelado poderá ser reaberto?
+- Pedidos cancelados deverão aparecer nos relatórios?
+- Pedidos cancelados deverão ser excluídos do cálculo de faturamento?
+- O endereço utilizado deverá permanecer registrado como estava no momento da venda, assim como já ocorre com os preços dos itens?
+
+## Pagamentos e Descontos
+
+- Quais formas de pagamento serão utilizadas?
+- Como funcionarão descontos em valor e em porcentagem?
+
+## Estoque e Produção
+
+- Em qual momento o estoque deverá ser descontado?
+- O cancelamento de um pedido sempre deverá devolver itens ao estoque?
+- O estoque representará produtos prontos, ingredientes ou ambos?
+- Será necessário controlar estoque de ingredientes futuramente?
+
+As decisões exclusivas do estoque poderão ser adiadas até o planejamento desse módulo, previsto para o próximo ano. A integração entre cancelamento de pedidos e devolução ao estoque também poderá ser definida nessa etapa, sem bloquear a implementação atual dos pedidos.
+
+## Capacidade de Produção — detalhes pendentes
+
+- Todos os pedidos ocuparão uma vaga igualmente, independentemente da quantidade e da complexidade dos itens?
+- Pedidos cancelados liberarão a vaga do intervalo?
+- O gerente poderá autorizar pedidos acima do limite?
+- Poderão existir configurações diferentes conforme o dia da semana ou uma data específica?
+
+## Arquivos e Fotos
+
+- Onde serão armazenadas as fotos de referência dos pedidos e as imagens dos produtos?
+- Quais formatos, tamanhos e limites de arquivo serão aceitos?
+
+Enquanto essas decisões estiverem pendentes, o assistente não deverá assumir comportamentos definitivos para essas regras.
+
+Quando as respostas forem fornecidas, elas deverão ser documentadas na seção de Regras de Negócio antes da implementação correspondente.
 
 ---
 

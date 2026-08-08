@@ -1,0 +1,29 @@
+{
+  "name": "julipe-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test",
+    "banco:testar": "node --env-file=.env scripts/testarConexao.js",
+    "prisma:gerar": "prisma generate",
+    "prisma:validar": "prisma validate"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0",
+    "cors": "2.8.5",
+    "dotenv": "16.6.1",
+    "express": "5.1.0",
+    "helmet": "8.1.0",
+    "jsonwebtoken": "9.0.2",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "prisma": "6.19.0"
+  }
+}
