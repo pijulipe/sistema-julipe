@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { Search, Plus, Pencil, Trash2, Package, PackageSearch } from "lucide-react";
 import { useCombos } from "./CombosContext";
-import { useProducts } from "./ProductsContext";
-import ComboModal, { ComboIcon } from "./ComboModal";
+import { useProdutos } from "./ProdutosContext";
+import ComboModal, { IconeCombo } from "./ComboModal";
 
 const formatBRL = (value) =>
   Number(value || 0).toLocaleString("pt-BR", {
@@ -11,42 +11,42 @@ const formatBRL = (value) =>
   });
 
 export default function CombosPanel() {
-  const { combos, addCombo, updateCombo, removeCombo } = useCombos();
-  const { products } = useProducts();
+  const { combos, adicionarCombo, atualizarCombo, removerCombo } = useCombos();
+  const { produtos } = useProdutos();
 
-  const [search, setSearch] = useState("");
+  const [busca, setBusca] = useState("");
   // null | { mode: "view" | "edit" | "create", combo?: combo }
   const [modal, setModal] = useState(null);
 
-  const productName = (id) =>
-    products.find((p) => p.id === id)?.name || "Produto removido";
+  const nomeProduto = (id) =>
+    produtos.find((p) => p.id === id)?.nome || "Produto removido";
 
   const itemsLabel = (combo) =>
-    combo.items.map((i) => `${i.qty}x ${productName(i.productId)}`).join(", ");
+    combo.itens.map((i) => `${i.quantidade}x ${nomeProduto(i.idProduto)}`).join(", ");
 
-  const filtered = useMemo(() => {
+  const filtrados = useMemo(() => {
     return combos.filter((c) => {
       if (
-        search.trim() &&
-        !c.name.toLowerCase().includes(search.trim().toLowerCase())
+        busca.trim() &&
+        !c.nome.toLowerCase().includes(busca.trim().toLowerCase())
       )
         return false;
       return true;
     });
-  }, [combos, search]);
+  }, [combos, busca]);
 
   const handleSave = (data) => {
     if (modal?.mode === "edit" && modal.combo) {
-      updateCombo(modal.combo.id, data);
+      atualizarCombo(modal.combo.id, data);
     } else if (modal?.mode === "create") {
-      addCombo(data);
+      adicionarCombo(data);
     }
     setModal(null);
   };
 
   const handleDelete = (e, id) => {
     e.stopPropagation();
-    removeCombo(id);
+    removerCombo(id);
   };
 
   return (
@@ -78,8 +78,8 @@ export default function CombosPanel() {
             className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
           />
           <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar combo..."
             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -87,7 +87,7 @@ export default function CombosPanel() {
       </div>
 
       {/* Tabela ou estado vazio */}
-      {filtered.length === 0 ? (
+      {filtrados.length === 0 ? (
         <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
           <PackageSearch
             size={40}
@@ -111,23 +111,23 @@ export default function CombosPanel() {
             <span className="text-right">Ações</span>
           </div>
 
-          {filtered.map((combo, idx) => (
+          {filtrados.map((combo, idx) => (
             <div
               key={combo.id}
               onClick={() => setModal({ mode: "view", combo })}
               className={`grid cursor-pointer grid-cols-[1.6fr_1.6fr_1fr_0.8fr_0.8fr] items-center gap-4 px-6 py-4 transition-colors hover:bg-slate-50 ${
-                idx !== filtered.length - 1 ? "border-b border-slate-100" : ""
+                idx !== filtrados.length - 1 ? "border-b border-slate-100" : ""
               }`}
             >
               <div className="flex items-center gap-3">
-                <ComboIcon />
+                <IconeCombo />
                 <div>
                   <div className="text-sm font-semibold text-slate-900">
-                    {combo.name}
+                    {combo.nome}
                   </div>
-                  {combo.description && (
+                  {combo.descricao && (
                     <div className="text-xs text-slate-400">
-                      {combo.description}
+                      {combo.descricao}
                     </div>
                   )}
                 </div>
@@ -139,7 +139,7 @@ export default function CombosPanel() {
               </span>
 
               <span className="text-sm font-bold text-blue-600">
-                {formatBRL(combo.price)}
+                {formatBRL(combo.preco)}
               </span>
 
               <span>

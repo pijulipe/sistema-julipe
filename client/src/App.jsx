@@ -1,82 +1,113 @@
 import React, { useState } from "react";
-import { OrdersProvider } from "./OrdersContext";
-import { ProductsProvider } from "./ProductsContext";
+import { PedidosProvider } from "./PedidosContext";
+import { ProdutosProvider } from "./ProdutosContext";
 import { CombosProvider } from "./CombosContext";
-import { ClientsProvider } from "./ClientsContext";
-import { StockProvider } from "./StockContext";
-import { SettingsProvider } from "./SettingsContext";
+import { ClientesProvider } from "./ClientesContext";
+import { EstoqueProvider } from "./EstoqueContext";
+import { ConfiguracoesProvider } from "./ConfiguracoesContext";
 import Navbar from "./Navbar";
 import DoceriaJulipeDashboard from "./DoceriaJulipeDashboard";
 import PedidosPanel from "./PedidosPanel";
-import ProductionPanel from "./ProductionPanel";
-import ProductsPanel from "./ProductsPanel";
+import ProducaoPanel from "./ProducaoPanel";
+import ProdutosPanel from "./ProdutosPanel";
 import CombosPanel from "./CombosPanel";
-import ClientsPanel from "./ClientsPanel";
-import StockPanel from "./StockPanel";
+import ClientesPanel from "./ClientesPanel";
+import EstoquePanel from "./EstoquePanel";
 import ExpedicaoPanel from "./ExpedicaoPanel";
-import ReportsPanel from "./ReportsPanel";
+import RelatoriosPanel from "./RelatoriosPanel";
 import NovoPedidoModal from "./NovoPedidoModal";
+import LoginPanel from "./LoginPanel";
+import CadastroPanel from "./CadastroPanel";
 
 function AppContent() {
   // "home" | "pedidos" | "producao" | "produto" | "combos" | "clientes" | "estoque" | "expedicao" | "relatorio" | "novoPedido"
   const [view, setView] = useState("home");
   // Guarda de qual tela o "Novo Pedido" foi aberto, para voltar pra lá ao
   // fechar o modal — funciona tanto a partir do Início quanto de Pedidos.
-  const [previousView, setPreviousView] = useState("home");
+  const [telaAnterior, setTelaAnterior] = useState("home");
 
-  const openNovoPedido = () => {
-    setPreviousView(view);
+  const abrirNovoPedido = () => {
+    setTelaAnterior(view);
     setView("novoPedido");
   };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       <Navbar
-        active={view === "novoPedido" ? previousView : view}
+        ativo={view === "novoPedido" ? telaAnterior : view}
         onNavigate={setView}
       />
 
       {view === "home" && (
-        <DoceriaJulipeDashboard onNovoPedido={openNovoPedido} />
+        <DoceriaJulipeDashboard onNovoPedido={abrirNovoPedido} />
       )}
 
-      {view === "pedidos" && <PedidosPanel onNovoPedido={openNovoPedido} />}
+      {view === "pedidos" && <PedidosPanel onNovoPedido={abrirNovoPedido} />}
 
-      {view === "producao" && <ProductionPanel />}
+      {view === "producao" && <ProducaoPanel />}
 
-      {view === "produto" && <ProductsPanel />}
+      {view === "produto" && <ProdutosPanel />}
 
       {view === "combos" && <CombosPanel />}
 
-      {view === "clientes" && <ClientsPanel />}
+      {view === "clientes" && <ClientesPanel />}
 
-      {view === "estoque" && <StockPanel />}
+      {view === "estoque" && <EstoquePanel />}
 
       {view === "expedicao" && <ExpedicaoPanel />}
 
-      {view === "relatorio" && <ReportsPanel />}
+      {view === "relatorio" && <RelatoriosPanel />}
 
       {view === "novoPedido" && (
-        <NovoPedidoModal onClose={() => setView(previousView)} />
+        <NovoPedidoModal onClose={() => setView(telaAnterior)} />
       )}
     </div>
   );
 }
 
 export default function App() {
+  // "login" | "cadastro" | "app"
+  // Enquanto não há integração real com o backend de autenticação
+  // (Supabase Auth — ver schema.sql), o acesso é liberado localmente ao
+  // enviar o formulário de Login ou Cadastro. Quando a integração real
+  // entrar, basta trocar o que acontece dentro de onEntrar/onCriarConta
+  // (chamar supabase.auth.signInWithPassword / signUp) mantendo a mesma
+  // troca de tela abaixo.
+  const [telaAuth, setTelaAuth] = useState("login");
+
+  if (telaAuth === "login") {
+    return (
+      <LoginPanel
+        onEntrar={async () => setTelaAuth("app")}
+        onEntrarComGoogle={async () => setTelaAuth("app")}
+        onIrParaCadastro={() => setTelaAuth("cadastro")}
+      />
+    );
+  }
+
+  if (telaAuth === "cadastro") {
+    return (
+      <CadastroPanel
+        onCriarConta={async () => setTelaAuth("app")}
+        onEntrarComGoogle={async () => setTelaAuth("app")}
+        onIrParaLogin={() => setTelaAuth("login")}
+      />
+    );
+  }
+
   return (
-    <SettingsProvider>
-      <OrdersProvider>
-        <ProductsProvider>
+    <ConfiguracoesProvider>
+      <PedidosProvider>
+        <ProdutosProvider>
           <CombosProvider>
-            <ClientsProvider>
-              <StockProvider>
+            <ClientesProvider>
+              <EstoqueProvider>
                 <AppContent />
-              </StockProvider>
-            </ClientsProvider>
+              </EstoqueProvider>
+            </ClientesProvider>
           </CombosProvider>
-        </ProductsProvider>
-      </OrdersProvider>
-    </SettingsProvider>
+        </ProdutosProvider>
+      </PedidosProvider>
+    </ConfiguracoesProvider>
   );
 }

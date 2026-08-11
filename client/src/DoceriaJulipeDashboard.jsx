@@ -16,25 +16,25 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { useOrders } from "./OrdersContext";
-import { useProducts } from "./ProductsContext";
+import { usePedidos } from "./PedidosContext";
+import { useProdutos } from "./ProdutosContext";
 import { useCombos } from "./CombosContext";
-import { useStock } from "./StockContext";
-import { useSettings, DAYS_OF_WEEK } from "./SettingsContext";
-import { categories } from "./productCategories";
+import { useEstoque } from "./EstoqueContext";
+import { useConfiguracoes, DIAS_DA_SEMANA } from "./ConfiguracoesContext";
+import { categorias } from "./categoriasProdutos";
 import {
-  getHourBucket,
-  decomposeOrderItems,
-  sumByCategory,
-  getExceededCategories,
-  decomposeItemsByProduct,
-  sumByProduct,
-} from "./capacity";
+  obterFaixaHora,
+  decomporItensPedido,
+  somarPorCategoria,
+  obterCategoriasExcedidas,
+  decomporItensPorProduto,
+  somarPorProduto,
+} from "./capacidade";
 import {
-  ReferencePhotosBadge,
-  getOrderReferenceImages,
-  ReferenceLightbox,
-} from "./ReferencePhotos";
+  FotosReferenciaBadge,
+  obterImagensReferenciaPedido,
+  LightboxReferencia,
+} from "./FotosReferencia";
 
 const statusMeta = {
   recebido: { label: "Recebido", bg: "#fef3c7", text: "#b45309" },
@@ -48,13 +48,13 @@ const statusMeta = {
  * (chegaram até o cliente de fato, por isso o ícone de caminhão) dos
  * pedidos de retirada (o cliente buscou no local, por isso o ícone de loja).
  */
-function getOrderStatusMeta(order) {
-  if (order.status === "entregue") {
-    return order.deliveryType === "retirada"
+function obterStatusPedido(pedido) {
+  if (pedido.status === "entregue") {
+    return pedido.tipoEntrega === "retirada"
       ? { label: "Retirado", bg: "#ede9fe", text: "#7c3aed", icon: Store }
       : { label: "Entregue", bg: "#dcfce7", text: "#16a34a", icon: Truck };
   }
-  return statusMeta[order.status] || statusMeta.recebido;
+  return statusMeta[pedido.status] || statusMeta.recebido;
 }
 
 const todayISO = () => new Date().toISOString().split("T")[0];
@@ -76,29 +76,29 @@ function formatToday() {
 }
 
 export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
-  const { orders, markDelivered } = useOrders();
-  const { products } = useProducts();
+  const { pedidos, marcarEntregue } = usePedidos();
+  const { produtos } = useProdutos();
   const { combos } = useCombos();
-  const { getStock } = useStock();
-  const { businessHours, setDayHours, alertThresholds, setThreshold, autoDeductStock, toggleAutoDeductStock } =
-    useSettings();
+  const { obterEstoque } = useEstoque();
+  const { horarioFuncionamento, definirHorarioDia, limitesAlerta, definirLimite, baixaAutomaticaEstoque, alternarBaixaAutomaticaEstoque } =
+    useConfiguracoes();
 
   const [showSettings, setShowSettings] = useState(false);
-  const [lightboxImage, setLightboxImage] = useState(null);
+  const [imagemLightbox, setLightboxImage] = useState(null);
 
   const today = todayISO();
-  const todayOrders = orders.filter((o) => o.deliveryDate === today);
-  const emProducaoCount = todayOrders.filter(
+  const topedidosDoDia = pedidos.filter((o) => o.dataEntrega === today);
+  const emProducaoCount = topedidosDoDia.filter(
     (o) => o.status === "em_producao"
   ).length;
-  const prontosCount = todayOrders.filter((o) => o.status === "pronto").length;
-  const faturamento = todayOrders.reduce((sum, o) => sum + o.total, 0);
-  const pendentesCount = todayOrders.filter(
+  const prontosCount = topedidosDoDia.filter((o) => o.status === "pronto").length;
+  const faturamento = topedidosDoDia.reduce((sum, o) => sum + o.total, 0);
+  const pendentesCount = topedidosDoDia.filter(
     (o) => o.status !== "entregue"
   ).length;
 
-  const sortedToday = [...todayOrders].sort((a, b) =>
-    (a.deliveryTime || "").localeCompare(b.deliveryTime || "")
+  const sortedToday = [...topedidosDoDia].sort((a, b) =>
+    (a.horarioEntrega || "").localeCompare(b.horarioEntrega || "")
   );
 
   /* -----------------------------------------------------------
@@ -110,22 +110,22 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
      - Sem baixa automática, o estoque não muda sozinho, então soma-se
        tudo que já foi vendido e compara com o que existe.
   ----------------------------------------------------------- */
-  const insufficientStockAlerts = useMemo(() => {
-    const soldByProduct = sumByProduct(
-      decomposeItemsByProduct(orders.flatMap((o) => o.items), combos)
+  const alertasEstoqueInsuficiente = useMemo(() => {
+    const vendidoPorProduto = somarPorProduto(
+      decomporItensPorProduto(pedidos.flatMap((o) => o.itens), combos)
     );
     const alerts = [];
-    products.forEach((p) => {
-      const { quantity } = getStock(p.id);
-      const missing = autoDeductStock
-        ? Math.max(-quantity, 0)
-        : Math.max((soldByProduct[p.id] || 0) - quantity, 0);
+    produtos.forEach((p) => {
+      const { quantidade } = obterEstoque(p.id);
+      const missing = baixaAutomaticaEstoque
+        ? Math.max(-quantidade, 0)
+        : Math.max((vendidoPorProduto[p.id] || 0) - quantidade, 0);
       if (missing > 0) {
-        alerts.push({ productId: p.id, name: p.name, missing });
+        alerts.push({ idProduto: p.id, nome: p.nome, missing });
       }
     });
     return alerts;
-  }, [orders, combos, products, getStock, autoDeductStock]);
+  }, [pedidos, combos, produtos, obterEstoque, baixaAutomaticaEstoque]);
 
   /* -----------------------------------------------------------
      Alertas de capacidade: agrupa os pedidos de hoje por hora
@@ -138,30 +138,30 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
     // Pedidos já concluídos (entregues/retirados) não ocupam mais
     // capacidade de produção, então saem da conta assim que mudam de
     // status — é isso que faz o alerta da hora sumir.
-    todayOrders
+    topedidosDoDia
       .filter((o) => o.status !== "entregue")
       .forEach((o) => {
-        const hb = getHourBucket(o.deliveryTime);
+        const hb = obterFaixaHora(o.horarioEntrega);
         if (!hb) return;
         if (!buckets[hb]) buckets[hb] = [];
         buckets[hb].push(o);
       });
 
     const alerts = [];
-    Object.entries(buckets).forEach(([hourBucket, ordersInHour]) => {
-      const items = ordersInHour.flatMap((o) => o.items);
-      const totals = sumByCategory(decomposeOrderItems(items, products, combos));
-      const exceeded = getExceededCategories(totals, alertThresholds);
-      exceeded.forEach((e) => alerts.push({ hourBucket, ...e }));
+    Object.entries(buckets).forEach(([faixaHora, pedidosNaHora]) => {
+      const itens = pedidosNaHora.flatMap((o) => o.itens);
+      const totals = somarPorCategoria(decomporItensPedido(itens, produtos, combos));
+      const exceeded = obterCategoriasExcedidas(totals, limitesAlerta);
+      exceeded.forEach((e) => alerts.push({ faixaHora, ...e }));
     });
 
-    return alerts.sort((a, b) => a.hourBucket.localeCompare(b.hourBucket));
-  }, [todayOrders, products, combos, alertThresholds]);
+    return alerts.sort((a, b) => a.faixaHora.localeCompare(b.faixaHora));
+  }, [topedidosDoDia, produtos, combos, limitesAlerta]);
 
   const stats = [
     {
       label: "Pedidos Hoje",
-      value: String(todayOrders.length),
+      value: String(topedidosDoDia.length),
       icon: ShoppingBag,
       color: "#2563eb",
       bg: "#eff6ff",
@@ -202,10 +202,10 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={toggleAutoDeductStock}
+            onClick={alternarBaixaAutomaticaEstoque}
             title="Quando ativado, a quantidade dos produtos (inclusive dentro de combos) é descontada automaticamente do estoque assim que um pedido é criado"
             className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors ${
-              autoDeductStock
+              baixaAutomaticaEstoque
                 ? "bg-green-100 text-green-700 hover:bg-green-200"
                 : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
             }`}
@@ -214,12 +214,12 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
             Baixa Automática de Estoque
             <span
               className={`ml-1 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-                autoDeductStock ? "bg-green-500" : "bg-slate-300"
+                baixaAutomaticaEstoque ? "bg-green-500" : "bg-slate-300"
               }`}
             >
               <span
                 className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                  autoDeductStock ? "translate-x-4" : "translate-x-0"
+                  baixaAutomaticaEstoque ? "translate-x-4" : "translate-x-0"
                 }`}
               />
             </span>
@@ -255,8 +255,8 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
               pedido, para cada dia da semana.
             </p>
             <div className="space-y-2">
-              {DAYS_OF_WEEK.map((day) => {
-                const cfg = businessHours[day.key];
+              {DIAS_DA_SEMANA.map((day) => {
+                const cfg = horarioFuncionamento[day.key];
                 return (
                   <div
                     key={day.key}
@@ -265,7 +265,7 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
                     <button
                       type="button"
                       onClick={() =>
-                        setDayHours(day.key, "enabled", !cfg.enabled)
+                        definirHorarioDia(day.key, "enabled", !cfg.enabled)
                       }
                       className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                         cfg.enabled
@@ -282,7 +282,7 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
                           type="time"
                           value={cfg.start}
                           onChange={(e) =>
-                            setDayHours(day.key, "start", e.target.value)
+                            definirHorarioDia(day.key, "start", e.target.value)
                           }
                           step={900}
                           className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -292,7 +292,7 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
                           type="time"
                           value={cfg.end}
                           onChange={(e) =>
-                            setDayHours(day.key, "end", e.target.value)
+                            definirHorarioDia(day.key, "end", e.target.value)
                           }
                           step={900}
                           className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -318,7 +318,7 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
               Ex: +500 itens de Salgados. Deixe vazio para não alertar.
             </p>
             <div className="space-y-2">
-              {categories.map((cat) => (
+              {categorias.map((cat) => (
                 <div
                   key={cat.key}
                   className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5"
@@ -333,8 +333,8 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
                       type="number"
                       min="0"
                       placeholder="Sem limite"
-                      value={alertThresholds[cat.key] ?? ""}
-                      onChange={(e) => setThreshold(cat.key, e.target.value)}
+                      value={limitesAlerta[cat.key] ?? ""}
+                      onChange={(e) => definirLimite(cat.key, e.target.value)}
                       className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <span className="text-xs text-slate-400">itens/h</span>
@@ -347,16 +347,16 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
       )}
 
       {/* Alerta de estoque insuficiente para atender os pedidos */}
-      {insufficientStockAlerts.length > 0 && (
+      {alertasEstoqueInsuficiente.length > 0 && (
         <div className="mb-6 space-y-2">
-          {insufficientStockAlerts.map((a) => (
+          {alertasEstoqueInsuficiente.map((a) => (
             <div
-              key={a.productId}
+              key={a.idProduto}
               className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4"
             >
               <AlertTriangle size={20} className="shrink-0 text-red-500" />
               <div className="text-sm text-red-700">
-                "<strong>{a.name}</strong>" insuficiente(s) para atender os
+                "<strong>{a.nome}</strong>" insuficiente(s) para atender os
                 pedidos{" "}
                 <span className="text-red-500">
                   (faltam {a.missing.toLocaleString("pt-BR")})
@@ -372,16 +372,16 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
         <div className="mb-6 space-y-2">
           {capacityAlerts.map((a, i) => (
             <div
-              key={`${a.hourBucket}-${a.category}-${i}`}
+              key={`${a.faixaHora}-${a.categoria}-${i}`}
               className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4"
             >
               <AlertTriangle size={20} className="shrink-0 text-red-500" />
               <div className="text-sm text-red-700">
                 <strong>
-                  {a.hourBucket}:00–{a.hourBucket}:59
+                  {a.faixaHora}:00–{a.faixaHora}:59
                 </strong>{" "}
-                — {a.qty.toLocaleString("pt-BR")} itens de{" "}
-                <strong>{a.category}</strong> agendados (limite: +
+                — {a.quantidade.toLocaleString("pt-BR")} itens de{" "}
+                <strong>{a.categoria}</strong> agendados (limite: +
                 {a.threshold})
               </div>
             </div>
@@ -434,15 +434,15 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-          {sortedToday.map((order, idx) => {
-            const meta = getOrderStatusMeta(order);
-            const itemsLabel = order.items
-              .map((i) => `${i.qty}x ${i.name}`)
+          {sortedToday.map((pedido, idx) => {
+            const meta = obterStatusPedido(pedido);
+            const itemsLabel = pedido.itens
+              .map((i) => `${i.quantidade}x ${i.nome}`)
               .join(", ");
-            const referenceImages = getOrderReferenceImages(order);
+            const imagemReferencias = obterImagensReferenciaPedido(pedido);
             return (
               <div
-                key={order.id}
+                key={pedido.id}
                 className={`flex items-center justify-between px-6 py-4 ${
                   idx !== sortedToday.length - 1
                     ? "border-b border-slate-100"
@@ -451,44 +451,44 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
               >
                 <div className="flex items-center gap-4">
                   <span className="flex items-center gap-1 text-sm text-slate-400">
-                    <Clock size={14} /> {order.deliveryTime}
+                    <Clock size={14} /> {pedido.horarioEntrega}
                   </span>
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
-                      {order.client?.name}
+                      {pedido.cliente?.nome}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-400">
                       {itemsLabel}
-                      <ReferencePhotosBadge
-                        images={referenceImages}
+                      <FotosReferenciaBadge
+                        images={imagemReferencias}
                         onOpen={setLightboxImage}
                       />
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {order.deliveryType === "retirada" && (
+                  {pedido.tipoEntrega === "retirada" && (
                     <span className="flex items-center gap-1 text-xs text-slate-400">
                       <Store size={13} /> Retirada
                     </span>
                   )}
                   <span className="text-sm font-semibold text-slate-900">
-                    {formatBRL(order.total)}
+                    {formatBRL(pedido.total)}
                   </span>
                   <span
                     className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                      order.status === "em_rota"
+                      pedido.status === "em_rota"
                         ? "cursor-pointer hover:opacity-80"
                         : ""
                     }`}
                     style={{ backgroundColor: meta.bg, color: meta.text }}
                     onClick={
-                      order.status === "em_rota"
-                        ? () => markDelivered(order.id)
+                      pedido.status === "em_rota"
+                        ? () => marcarEntregue(pedido.id)
                         : undefined
                     }
                     title={
-                      order.status === "em_rota"
+                      pedido.status === "em_rota"
                         ? "Clique para marcar como entregue"
                         : undefined
                     }
@@ -503,7 +503,7 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
         </div>
       )}
 
-      <ReferenceLightbox image={lightboxImage} onClose={() => setLightboxImage(null)} />
+      <LightboxReferencia imagem={imagemLightbox} onClose={() => setLightboxImage(null)} />
     </main>
   );
 }

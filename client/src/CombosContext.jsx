@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState } from "react";
 /* ---------------------------------------------------------
    Contexto global de combos.
    Um combo agrupa 1+ produtos com um preço próprio.
-   items: [{ productId, qty }]
+   itens: [{ idProduto, quantidade }]
 --------------------------------------------------------- */
 
 const CombosContext = createContext(null);
@@ -15,32 +15,32 @@ export function CombosProvider({ children }) {
 
   /**
    * Cria um novo combo com status inicial "Ativo".
-   * data: { name, description, price, items, status }
+   * data: { nome, descricao, preco, itens, status }
    */
-  const addCombo = (data) => {
-    const newCombo = {
+  const adicionarCombo = (data) => {
+    const novoCombo = {
       id: idCounter++,
       status: "Ativo",
       ...data,
     };
-    setCombos((prev) => [...prev, newCombo]);
-    return newCombo;
+    setCombos((prev) => [...prev, novoCombo]);
+    return novoCombo;
   };
 
   /** Atualiza campos de um combo existente. */
-  const updateCombo = (id, data) => {
+  const atualizarCombo = (id, data) => {
     setCombos((prev) =>
       prev.map((c) => (c.id === id ? { ...c, ...data } : c))
     );
   };
 
-  const removeCombo = (id) => {
+  const removerCombo = (id) => {
     setCombos((prev) => prev.filter((c) => c.id !== id));
   };
 
   return (
     <CombosContext.Provider
-      value={{ combos, addCombo, updateCombo, removeCombo }}
+      value={{ combos, adicionarCombo, atualizarCombo, removerCombo }}
     >
       {children}
     </CombosContext.Provider>

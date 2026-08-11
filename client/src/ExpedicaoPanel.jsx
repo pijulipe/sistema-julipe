@@ -10,8 +10,8 @@ import {
   ClipboardList,
   CheckCircle2,
 } from "lucide-react";
-import { useOrders } from "./OrdersContext";
-import { ReferenceImageThumb, ReferenceLightbox } from "./ReferencePhotos";
+import { usePedidos } from "./PedidosContext";
+import { MiniaturaImagemReferencia, LightboxReferencia } from "./FotosReferencia";
 
 /* ---------------------------------------------------------
    Helpers
@@ -40,90 +40,90 @@ function formatToday() {
    Main component
 --------------------------------------------------------- */
 export default function ExpedicaoPanel() {
-  const { orders, completeOrder, markDelivered } = useOrders();
-  const [search, setSearch] = useState("");
-  const [lightboxImage, setLightboxImage] = useState(null);
+  const { pedidos, concluirPedido, marcarEntregue } = usePedidos();
+  const [busca, setBusca] = useState("");
+  const [imagemLightbox, setLightboxImage] = useState(null);
 
   const today = todayISO();
 
-  const todayOrders = useMemo(
-    () => orders.filter((o) => o.deliveryDate === today),
-    [orders, today]
+  const topedidosDoDia = useMemo(
+    () => pedidos.filter((o) => o.dataEntrega === today),
+    [pedidos, today]
   );
 
   // Pedidos que já saíram da produção (pronto) até serem finalizados
   // (entregue/retirado). Uma vez finalizados, saem automaticamente
   // desta tela e também não aparecem mais como "Pronto" na Produção.
-  const activeOrders = useMemo(
+  const pedidosAtivos = useMemo(
     () =>
-      todayOrders.filter(
+      topedidosDoDia.filter(
         (o) => o.status === "pronto" || o.status === "em_rota"
       ),
-    [todayOrders]
+    [topedidosDoDia]
   );
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return activeOrders;
-    return activeOrders.filter(
+  const filtrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return pedidosAtivos;
+    return pedidosAtivos.filter(
       (o) =>
-        o.client?.name?.toLowerCase().includes(q) ||
-        (o.client?.phone || "").includes(q) ||
-        (o.neighborhood || o.client?.neighborhood || "")
+        o.cliente?.nome?.toLowerCase().includes(q) ||
+        (o.cliente?.telefone || "").includes(q) ||
+        (o.bairro || o.cliente?.bairro || "")
           .toLowerCase()
           .includes(q)
     );
-  }, [activeOrders, search]);
+  }, [pedidosAtivos, busca]);
 
-  const sortedFiltered = useMemo(
+  const filtradosOrdenados = useMemo(
     () =>
-      [...filtered].sort((a, b) =>
-        (a.deliveryTime || "").localeCompare(b.deliveryTime || "")
+      [...filtrados].sort((a, b) =>
+        (a.horarioEntrega || "").localeCompare(b.horarioEntrega || "")
       ),
-    [filtered]
+    [filtrados]
   );
 
   const stats = useMemo(() => {
-    const prontos = todayOrders.filter((o) => o.status === "pronto").length;
-    const emRota = todayOrders.filter((o) => o.status === "em_rota").length;
-    const entregas = todayOrders.filter(
+    const prontos = topedidosDoDia.filter((o) => o.status === "pronto").length;
+    const emRota = topedidosDoDia.filter((o) => o.status === "em_rota").length;
+    const entregas = topedidosDoDia.filter(
       (o) =>
-        o.deliveryType !== "retirada" &&
+        o.tipoEntrega !== "retirada" &&
         (o.status === "pronto" || o.status === "em_rota")
     ).length;
-    const retiradas = todayOrders.filter(
-      (o) => o.deliveryType === "retirada" && o.status === "pronto"
+    const retiradas = topedidosDoDia.filter(
+      (o) => o.tipoEntrega === "retirada" && o.status === "pronto"
     ).length;
     return { prontos, emRota, entregas, retiradas };
-  }, [todayOrders]);
+  }, [topedidosDoDia]);
 
   // Roteiro de entregas: agrupa apenas pedidos de entrega (não retirada),
   // já que pedidos de retirada não têm endereço a ser roteirizado.
-  const routeGroups = useMemo(() => {
-    const deliveryOrders = sortedFiltered.filter(
-      (o) => o.deliveryType !== "retirada"
+  const gruposRota = useMemo(() => {
+    const pedidosEntrega = filtradosOrdenados.filter(
+      (o) => o.tipoEntrega !== "retirada"
     );
     const groups = [];
-    deliveryOrders.forEach((order) => {
+    pedidosEntrega.forEach((pedido) => {
       const key =
-        order.neighborhood?.trim() ||
-        order.client?.neighborhood?.trim() ||
+        pedido.bairro?.trim() ||
+        pedido.cliente?.bairro?.trim() ||
         "Sem bairro";
-      let group = groups.find((g) => g.name === key);
+      let group = groups.find((g) => g.nome === key);
       if (!group) {
-        group = { name: key, orders: [] };
+        group = { nome: key, pedidos: [] };
         groups.push(group);
       }
-      group.orders.push(order);
+      group.pedidos.push(pedido);
     });
     return groups;
-  }, [sortedFiltered]);
+  }, [filtradosOrdenados]);
 
-  const handlePrimaryAction = (order) => {
-    if (order.status === "pronto") {
-      completeOrder(order.id);
-    } else if (order.status === "em_rota") {
-      markDelivered(order.id);
+  const handleAcaoPrincipal = (pedido) => {
+    if (pedido.status === "pronto") {
+      concluirPedido(pedido.id);
+    } else if (pedido.status === "em_rota") {
+      marcarEntregue(pedido.id);
     }
   };
 
@@ -132,8 +132,8 @@ export default function ExpedicaoPanel() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-900">Expedição</h1>
         <p className="mt-1 text-slate-500">
-          {formatToday()} • {activeOrders.length} pedido
-          {activeOrders.length !== 1 ? "s" : ""} prontos
+          {formatToday()} • {pedidosAtivos.length} pedido
+          {pedidosAtivos.length !== 1 ? "s" : ""} prontos
         </p>
       </div>
 
@@ -153,19 +153,19 @@ export default function ExpedicaoPanel() {
             className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
           />
           <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por cliente, telefone ou bairro..."
             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
 
-      {sortedFiltered.length === 0 ? (
+      {filtradosOrdenados.length === 0 ? (
         <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
           <Truck size={40} className="mb-3 text-slate-300" strokeWidth={1.5} />
           <p className="text-slate-400">
-            {activeOrders.length === 0
+            {pedidosAtivos.length === 0
               ? "Nenhum pedido pronto para expedição hoje"
               : "Nenhum pedido encontrado"}
           </p>
@@ -181,11 +181,11 @@ export default function ExpedicaoPanel() {
               </h2>
             </div>
             <div className="space-y-4">
-              {sortedFiltered.map((order) => (
-                <ExpedicaoOrderCard
-                  key={order.id}
-                  order={order}
-                  onAction={() => handlePrimaryAction(order)}
+              {filtradosOrdenados.map((pedido) => (
+                <CardPedidoExpedicao
+                  key={pedido.id}
+                  pedido={pedido}
+                  onAction={() => handleAcaoPrincipal(pedido)}
                   onViewImage={setLightboxImage}
                 />
               ))}
@@ -200,15 +200,15 @@ export default function ExpedicaoPanel() {
                 Roteiro de Entregas
               </h2>
             </div>
-            {routeGroups.length === 0 ? (
+            {gruposRota.length === 0 ? (
               <div className="flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-400">
                 Nenhuma entrega no roteiro
               </div>
             ) : (
               <div className="space-y-4">
-                {routeGroups.map((group, idx) => (
+                {gruposRota.map((group, idx) => (
                   <div
-                    key={group.name}
+                    key={group.nome}
                     className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
                   >
                     <div className="mb-3 flex items-center gap-2">
@@ -216,28 +216,28 @@ export default function ExpedicaoPanel() {
                         {idx + 1}
                       </span>
                       <span className="text-sm font-semibold text-slate-900">
-                        {group.name}
+                        {group.nome}
                       </span>
                       <span className="text-xs text-slate-400">
-                        ({group.orders.length})
+                        ({group.pedidos.length})
                       </span>
                     </div>
                     <div className="space-y-2">
-                      {group.orders.map((order) => (
+                      {group.pedidos.map((pedido) => (
                         <div
-                          key={order.id}
+                          key={pedido.id}
                           className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2.5"
                         >
                           <div className="min-w-0">
                             <div className="truncate text-sm font-medium text-slate-800">
-                              {order.client?.name}
+                              {pedido.cliente?.nome}
                             </div>
                             <div className="truncate text-xs text-slate-400">
-                              {order.address}
+                              {pedido.endereco}
                             </div>
                           </div>
                           <span className="shrink-0 text-xs text-slate-400">
-                            {order.deliveryTime}
+                            {pedido.horarioEntrega}
                           </span>
                         </div>
                       ))}
@@ -250,8 +250,8 @@ export default function ExpedicaoPanel() {
         </div>
       )}
 
-      <ReferenceLightbox
-        image={lightboxImage}
+      <LightboxReferencia
+        imagem={imagemLightbox}
         onClose={() => setLightboxImage(null)}
       />
     </main>
@@ -273,9 +273,9 @@ function StatCard({ label, value }) {
 /* ---------------------------------------------------------
    Card de pedido pronto para expedição
 --------------------------------------------------------- */
-function ExpedicaoOrderCard({ order, onAction, onViewImage }) {
-  const isRetirada = order.deliveryType === "retirada";
-  const isEmRota = order.status === "em_rota";
+function CardPedidoExpedicao({ pedido, onAction, onViewImage }) {
+  const isRetirada = pedido.tipoEntrega === "retirada";
+  const isEmRota = pedido.status === "em_rota";
 
   // O ícone de caminhão fica reservado para o que de fato roda de veículo
   // (saiu para entrega / entregue). Retirada, feita pelo próprio cliente
@@ -307,7 +307,7 @@ function ExpedicaoOrderCard({ order, onAction, onViewImage }) {
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-slate-900">
-            {order.client?.name}
+            {pedido.cliente?.nome}
           </span>
           <span
             className="rounded-full px-2.5 py-1 text-xs font-semibold"
@@ -317,16 +317,16 @@ function ExpedicaoOrderCard({ order, onAction, onViewImage }) {
           </span>
         </div>
         <span className="shrink-0 text-base font-bold text-slate-900">
-          {formatBRL(order.total)}
+          {formatBRL(pedido.total)}
         </span>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
         <span className="flex items-center gap-1">
-          <Clock size={12} /> {order.deliveryTime}
+          <Clock size={12} /> {pedido.horarioEntrega}
         </span>
         <span className="flex items-center gap-1">
-          <Phone size={12} /> {order.client?.phone}
+          <Phone size={12} /> {pedido.cliente?.telefone}
         </span>
         {isRetirada ? (
           <span className="flex items-center gap-1">
@@ -335,23 +335,23 @@ function ExpedicaoOrderCard({ order, onAction, onViewImage }) {
         ) : (
           <span className="flex min-w-0 items-center gap-1 truncate">
             <MapPin size={12} className="shrink-0" />
-            <span className="truncate">{order.address}</span>
+            <span className="truncate">{pedido.endereco}</span>
           </span>
         )}
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 pt-3 text-sm text-slate-500">
-        {order.items.map((item) => (
+        {pedido.itens.map((item) => (
           <span key={item.id} className="flex items-center gap-1.5">
-            {item.referenceImage && (
-              <ReferenceImageThumb
-                src={item.referenceImage}
-                alt={item.name}
+            {item.imagemReferencia && (
+              <MiniaturaImagemReferencia
+                src={item.imagemReferencia}
+                alt={item.nome}
                 size={20}
                 onOpen={onViewImage}
               />
             )}
-            {item.qty}x {item.name}
+            {item.quantidade}x {item.nome}
           </span>
         ))}
       </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { X, Pencil, Tag, Package, Plus, Check } from "lucide-react";
-import { useProducts } from "./ProductsContext";
+import { useProdutos } from "./ProdutosContext";
 
 const formatBRL = (value) =>
   Number(value || 0).toLocaleString("pt-BR", {
@@ -9,11 +9,11 @@ const formatBRL = (value) =>
   });
 
 const emptyForm = {
-  name: "",
-  description: "",
-  price: "",
-  items: [], // [{ productId, qty }]
-  active: true,
+  nome: "",
+  descricao: "",
+  preco: "",
+  itens: [], // [{ idProduto, quantidade }]
+  ativo: true,
 };
 
 /**
@@ -21,35 +21,35 @@ const emptyForm = {
  * combo: obrigatório para "view" e "edit"
  */
 export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit }) {
-  const { products } = useProducts();
+  const { produtos } = useProdutos();
   const isForm = mode === "edit" || mode === "create";
 
   const [form, setForm] = useState(() =>
     mode === "edit" && combo
       ? {
-          name: combo.name,
-          description: combo.description || "",
-          price: String(combo.price),
-          items: combo.items.map((i) => ({ ...i })),
-          active: combo.status !== "Inativo",
+          nome: combo.nome,
+          descricao: combo.descricao || "",
+          preco: String(combo.preco),
+          itens: combo.itens.map((i) => ({ ...i })),
+          ativo: combo.status !== "Inativo",
         }
       : emptyForm
   );
 
-  const [pickerProductId, setPickerProductId] = useState("");
+  const [idProdutoSelecionado, setIdProdutoSelecionado] = useState("");
   const [pickerQty, setPickerQty] = useState(1);
 
   // Enquanto autoPrice estiver true, o preço acompanha a soma dos produtos.
   // Assim que o usuário digitar manualmente, para de sincronizar.
   const [autoPrice, setAutoPrice] = useState(mode !== "edit");
 
-  const productName = (id) =>
-    products.find((p) => p.id === id)?.name || "Produto removido";
+  const nomeProduto = (id) =>
+    produtos.find((p) => p.id === id)?.nome || "Produto removido";
 
-  const productPrice = (id) => products.find((p) => p.id === id)?.price || 0;
+  const precoProduto = (id) => produtos.find((p) => p.id === id)?.preco || 0;
 
-  const itemsSum = form.items.reduce(
-    (sum, item) => sum + productPrice(item.productId) * item.qty,
+  const itemsSum = form.itens.reduce(
+    (sum, item) => sum + precoProduto(item.idProduto) * item.quantidade,
     0
   );
 
@@ -57,7 +57,7 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
     if (!autoPrice) return;
     setForm((prev) => ({
       ...prev,
-      price: itemsSum > 0 ? String(itemsSum) : "",
+      preco: itemsSum > 0 ? String(itemsSum) : "",
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsSum, autoPrice]);
@@ -67,56 +67,56 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
 
   const handlePriceChange = (e) => {
     setAutoPrice(false);
-    setForm((prev) => ({ ...prev, price: e.target.value }));
+    setForm((prev) => ({ ...prev, preco: e.target.value }));
   };
 
-  const handleAddItem = () => {
-    if (!pickerProductId) return;
-    const id = Number(pickerProductId);
-    const qty = Math.max(1, Number(pickerQty) || 1);
+  const handleAdicionarItem = () => {
+    if (!idProdutoSelecionado) return;
+    const id = Number(idProdutoSelecionado);
+    const quantidade = Math.max(1, Number(pickerQty) || 1);
 
     setForm((prev) => {
-      const existing = prev.items.find((i) => i.productId === id);
+      const existing = prev.itens.find((i) => i.idProduto === id);
       if (existing) {
         return {
           ...prev,
-          items: prev.items.map((i) =>
-            i.productId === id ? { ...i, qty: i.qty + qty } : i
+          itens: prev.itens.map((i) =>
+            i.idProduto === id ? { ...i, quantidade: i.quantidade + quantidade } : i
           ),
         };
       }
-      return { ...prev, items: [...prev.items, { productId: id, qty }] };
+      return { ...prev, itens: [...prev.itens, { idProduto: id, quantidade }] };
     });
-    setPickerProductId("");
+    setIdProdutoSelecionado("");
     setPickerQty(1);
   };
 
-  const handleItemQtyChange = (productId, qty) => {
+  const handleItemQtyChange = (idProduto, quantidade) => {
     setForm((prev) => ({
       ...prev,
-      items: prev.items.map((i) =>
-        i.productId === productId
-          ? { ...i, qty: Math.max(1, Number(qty) || 1) }
+      itens: prev.itens.map((i) =>
+        i.idProduto === idProduto
+          ? { ...i, quantidade: Math.max(1, Number(quantidade) || 1) }
           : i
       ),
     }));
   };
 
-  const handleRemoveItem = (productId) => {
+  const handleRemoveItem = (idProduto) => {
     setForm((prev) => ({
       ...prev,
-      items: prev.items.filter((i) => i.productId !== productId),
+      itens: prev.itens.filter((i) => i.idProduto !== idProduto),
     }));
   };
 
   const handleSubmit = () => {
-    if (!form.name.trim() || form.items.length === 0) return;
+    if (!form.nome.trim() || form.itens.length === 0) return;
     onSave({
-      name: form.name.trim(),
-      description: form.description.trim(),
-      price: Number(form.price) || 0,
-      items: form.items,
-      status: form.active ? "Ativo" : "Inativo",
+      nome: form.nome.trim(),
+      descricao: form.descricao.trim(),
+      preco: Number(form.preco) || 0,
+      itens: form.itens,
+      status: form.ativo ? "Ativo" : "Inativo",
     });
   };
 
@@ -134,9 +134,9 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
           <>
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
               <div className="flex items-center gap-3">
-                <ComboIcon />
+                <IconeCombo />
                 <span className="text-lg font-bold text-slate-900">
-                  {combo.name}
+                  {combo.nome}
                 </span>
               </div>
               <button
@@ -149,15 +149,15 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
             </div>
 
             <div className="space-y-4 px-6 py-5">
-              {combo.description && (
-                <p className="text-sm text-slate-500">{combo.description}</p>
+              {combo.descricao && (
+                <p className="text-sm text-slate-500">{combo.descricao}</p>
               )}
 
               <Row
                 label="Preço"
                 value={
                   <span className="font-bold text-blue-600">
-                    {formatBRL(combo.price)}
+                    {formatBRL(combo.preco)}
                   </span>
                 }
               />
@@ -181,17 +181,17 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
                   Itens do Combo
                 </div>
                 <div className="space-y-2">
-                  {combo.items.map((item) => (
+                  {combo.itens.map((item) => (
                     <div
-                      key={item.productId}
+                      key={item.idProduto}
                       className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm"
                     >
                       <span className="flex items-center gap-2 text-slate-700">
                         <Package size={15} className="text-slate-400" />
-                        {productName(item.productId)}
+                        {nomeProduto(item.idProduto)}
                       </span>
                       <span className="font-medium text-slate-500">
-                        {item.qty}x
+                        {item.quantidade}x
                       </span>
                     </div>
                   ))}
@@ -223,8 +223,8 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
             <div className="max-h-[70vh] space-y-4 overflow-y-auto px-6 py-5">
               <Field label="Nome *">
                 <input
-                  value={form.name}
-                  onChange={handleChange("name")}
+                  value={form.nome}
+                  onChange={handleChange("nome")}
                   placeholder="Nome do combo"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -232,8 +232,8 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
 
               <Field label="Descrição">
                 <input
-                  value={form.description}
-                  onChange={handleChange("description")}
+                  value={form.descricao}
+                  onChange={handleChange("descricao")}
                   placeholder="Descrição do combo..."
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -244,12 +244,12 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
                   type="number"
                   min="0"
                   step="0.01"
-                  value={form.price}
+                  value={form.preco}
                   onChange={handlePriceChange}
                   placeholder="0,00"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                {form.items.length > 0 && (
+                {form.itens.length > 0 && (
                   <p className="mt-1.5 text-xs text-slate-400">
                     Soma dos produtos selecionados:{" "}
                     <span className="font-semibold text-slate-600">
@@ -274,14 +274,14 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
               <Field label="Produtos do Combo">
                 <div className="flex items-center gap-2">
                   <select
-                    value={pickerProductId}
-                    onChange={(e) => setPickerProductId(e.target.value)}
+                    value={idProdutoSelecionado}
+                    onChange={(e) => setIdProdutoSelecionado(e.target.value)}
                     className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Selecionar produto...</option>
-                    {products.map((p) => (
+                    {produtos.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}
+                        {p.nome}
                       </option>
                     ))}
                   </select>
@@ -293,8 +293,8 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
                     className="w-16 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-center text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
-                    onClick={handleAddItem}
-                    disabled={!pickerProductId}
+                    onClick={handleAdicionarItem}
+                    disabled={!idProdutoSelecionado}
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="Adicionar produto"
                   >
@@ -303,29 +303,29 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
                 </div>
               </Field>
 
-              {form.items.length > 0 && (
+              {form.itens.length > 0 && (
                 <div className="space-y-2">
-                  {form.items.map((item) => (
+                  {form.itens.map((item) => (
                     <div
-                      key={item.productId}
+                      key={item.idProduto}
                       className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2.5"
                     >
                       <span className="flex items-center gap-2 text-sm text-slate-700">
                         <Package size={15} className="text-slate-400" />
-                        {productName(item.productId)}
+                        {nomeProduto(item.idProduto)}
                       </span>
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
                           min="1"
-                          value={item.qty}
+                          value={item.quantidade}
                           onChange={(e) =>
-                            handleItemQtyChange(item.productId, e.target.value)
+                            handleItemQtyChange(item.idProduto, e.target.value)
                           }
                           className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         <button
-                          onClick={() => handleRemoveItem(item.productId)}
+                          onClick={() => handleRemoveItem(item.idProduto)}
                           className="text-slate-400 transition-colors hover:text-red-600"
                           aria-label="Remover produto do combo"
                         >
@@ -339,16 +339,16 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
 
               <button
                 onClick={() =>
-                  setForm((prev) => ({ ...prev, active: !prev.active }))
+                  setForm((prev) => ({ ...prev, ativo: !prev.ativo }))
                 }
                 className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                  form.active
+                  form.ativo
                     ? "bg-green-100 text-green-700"
                     : "bg-slate-100 text-slate-500"
                 }`}
               >
                 <Check size={15} />
-                {form.active ? "Ativo para venda" : "Inativo"}
+                {form.ativo ? "Ativo para venda" : "Inativo"}
               </button>
             </div>
 
@@ -361,7 +361,7 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!form.name.trim() || form.items.length === 0}
+                disabled={!form.nome.trim() || form.itens.length === 0}
                 className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {mode === "edit" ? "Salvar" : "Criar"}
@@ -394,7 +394,7 @@ function Field({ label, children }) {
   );
 }
 
-export function ComboIcon({ size = 36 }) {
+export function IconeCombo({ size = 36 }) {
   return (
     <div
       className="flex shrink-0 items-center justify-center rounded-xl"

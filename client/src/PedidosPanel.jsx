@@ -16,13 +16,13 @@ import {
   PackageCheck,
   PackageSearch,
 } from "lucide-react";
-import { useOrders } from "./OrdersContext";
-import EditOrderModal from "./EditOrderModal";
+import { usePedidos } from "./PedidosContext";
+import EditarPedidoModal from "./EditarPedidoModal";
 import {
-  ReferencePhotosBadge,
-  getOrderReferenceImages,
-  ReferenceLightbox,
-} from "./ReferencePhotos";
+  FotosReferenciaBadge,
+  obterImagensReferenciaPedido,
+  LightboxReferencia,
+} from "./FotosReferencia";
 
 /* ---------------------------------------------------------
    Helpers
@@ -77,13 +77,13 @@ const statusMeta = {
   cancelado: { label: "Cancelado", bg: "#fee2e2", text: "#dc2626", icon: Ban },
 };
 
-function getOrderStatusMeta(order) {
-  if (order.status === "entregue") {
-    return order.deliveryType === "retirada"
+function obterStatusPedido(pedido) {
+  if (pedido.status === "entregue") {
+    return pedido.tipoEntrega === "retirada"
       ? { label: "Retirado", bg: "#ede9fe", text: "#7c3aed", icon: Store }
       : { label: "Entregue", bg: "#dcfce7", text: "#16a34a", icon: Truck };
   }
-  return statusMeta[order.status] || statusMeta.recebido;
+  return statusMeta[pedido.status] || statusMeta.recebido;
 }
 
 const paymentStatusMeta = {
@@ -96,61 +96,61 @@ const paymentStatusMeta = {
    Main component
 --------------------------------------------------------- */
 export default function PedidosPanel({ onNovoPedido = () => {} }) {
-  const { orders, updateOrder } = useOrders();
+  const { pedidos, atualizarPedido } = usePedidos();
 
   const [selectedDate, setSelectedDate] = useState(todayISO());
-  const [search, setSearch] = useState("");
+  const [busca, setBusca] = useState("");
   const [showHistory, setShowHistory] = useState(false);
-  const [editingOrder, setEditingOrder] = useState(null);
-  const [lightboxImage, setLightboxImage] = useState(null);
+  const [pedidoEmEdicao, setPedidoEmEdicao] = useState(null);
+  const [imagemLightbox, setLightboxImage] = useState(null);
 
   const today = todayISO();
   const isToday = selectedDate === today;
 
   /* ---------------- Pedidos da data selecionada ---------------- */
-  const dayOrders = useMemo(
-    () => orders.filter((o) => o.deliveryDate === selectedDate),
-    [orders, selectedDate]
+  const pedidosDoDia = useMemo(
+    () => pedidos.filter((o) => o.dataEntrega === selectedDate),
+    [pedidos, selectedDate]
   );
 
-  const matchesSearch = (order, q) =>
+  const correspondeABusca = (pedido, q) =>
     !q ||
-    order.client?.name?.toLowerCase().includes(q) ||
-    (order.client?.phone || "").includes(q) ||
-    (order.items || []).some((i) => i.name.toLowerCase().includes(q));
+    pedido.cliente?.nome?.toLowerCase().includes(q) ||
+    (pedido.cliente?.telefone || "").includes(q) ||
+    (pedido.itens || []).some((i) => i.nome.toLowerCase().includes(q));
 
-  const filteredDayOrders = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return [...dayOrders]
-      .filter((o) => matchesSearch(o, q))
-      .sort((a, b) => (a.deliveryTime || "").localeCompare(b.deliveryTime || ""));
-  }, [dayOrders, search]);
+  const pedidosDoDiaFiltrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return [...pedidosDoDia]
+      .filter((o) => correspondeABusca(o, q))
+      .sort((a, b) => (a.horarioEntrega || "").localeCompare(b.horarioEntrega || ""));
+  }, [pedidosDoDia, busca]);
 
   const dayStats = useMemo(() => {
-    const total = dayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const ativos = dayOrders.filter(
+    const total = pedidosDoDia.reduce((sum, o) => sum + (o.total || 0), 0);
+    const ativos = pedidosDoDia.filter(
       (o) => o.status !== "entregue" && o.status !== "cancelado"
     ).length;
-    return { count: dayOrders.length, total, ativos };
-  }, [dayOrders]);
+    return { count: pedidosDoDia.length, total, ativos };
+  }, [pedidosDoDia]);
 
   /* ---------------- Histórico: pedidos já concluídos (entregues,
      retirados ou cancelados), de qualquer data, mais recentes primeiro ---------------- */
-  const historyOrders = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const base = orders.filter(
+  const pedidosHistorico = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    const base = pedidos.filter(
       (o) => o.status === "entregue" || o.status === "cancelado"
     );
     return base
-      .filter((o) => matchesSearch(o, q))
+      .filter((o) => correspondeABusca(o, q))
       .sort((a, b) => {
-        const da = `${a.deliveryDate || ""} ${a.deliveryTime || ""}`;
-        const db = `${b.deliveryDate || ""} ${b.deliveryTime || ""}`;
+        const da = `${a.dataEntrega || ""} ${a.horarioEntrega || ""}`;
+        const db = `${b.dataEntrega || ""} ${b.horarioEntrega || ""}`;
         return db.localeCompare(da);
       });
-  }, [orders, search]);
+  }, [pedidos, busca]);
 
-  const listToRender = showHistory ? historyOrders : filteredDayOrders;
+  const listToRender = showHistory ? pedidosHistorico : pedidosDoDiaFiltrados;
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
@@ -159,7 +159,7 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Pedidos</h1>
           <p className="mt-1 text-slate-500">
-            {orders.length} pedido{orders.length !== 1 ? "s" : ""} no total
+            {pedidos.length} pedido{pedidos.length !== 1 ? "s" : ""} no total
           </p>
         </div>
 
@@ -248,8 +248,8 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
             className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
           />
           <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
             placeholder={
               showHistory
                 ? "Buscar no histórico por cliente, telefone ou item..."
@@ -263,9 +263,9 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
       {showHistory && (
         <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
           <History size={15} />
-          {historyOrders.length} pedido{historyOrders.length !== 1 ? "s" : ""}{" "}
-          concluído{historyOrders.length !== 1 ? "s" : ""} ou cancelado
-          {historyOrders.length !== 1 ? "s" : ""}
+          {pedidosHistorico.length} pedido{pedidosHistorico.length !== 1 ? "s" : ""}{" "}
+          concluído{pedidosHistorico.length !== 1 ? "s" : ""} ou cancelado
+          {pedidosHistorico.length !== 1 ? "s" : ""}
         </div>
       )}
 
@@ -280,39 +280,39 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
           <p className="text-slate-400">
             {showHistory
               ? "Nenhum pedido no histórico"
-              : dayOrders.length === 0
+              : pedidosDoDia.length === 0
               ? "Nenhum pedido para esta data"
               : "Nenhum pedido encontrado"}
           </p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-          {listToRender.map((order, idx) => (
+          {listToRender.map((pedido, idx) => (
             <PedidoRow
-              key={order.id}
-              order={order}
+              key={pedido.id}
+              pedido={pedido}
               isLast={idx === listToRender.length - 1}
               showDate={showHistory}
-              onEdit={() => setEditingOrder(order)}
+              onEdit={() => setPedidoEmEdicao(pedido)}
               onViewImage={setLightboxImage}
             />
           ))}
         </div>
       )}
 
-      {editingOrder && (
-        <EditOrderModal
-          order={editingOrder}
-          onClose={() => setEditingOrder(null)}
+      {pedidoEmEdicao && (
+        <EditarPedidoModal
+          pedido={pedidoEmEdicao}
+          onClose={() => setPedidoEmEdicao(null)}
           onSave={(data) => {
-            updateOrder(editingOrder.id, data);
-            setEditingOrder(null);
+            atualizarPedido(pedidoEmEdicao.id, data);
+            setPedidoEmEdicao(null);
           }}
         />
       )}
 
-      <ReferenceLightbox
-        image={lightboxImage}
+      <LightboxReferencia
+        imagem={imagemLightbox}
         onClose={() => setLightboxImage(null)}
       />
     </main>
@@ -322,14 +322,14 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
 /* ---------------------------------------------------------
    Linha de pedido — usada tanto na lista do dia quanto no histórico
 --------------------------------------------------------- */
-function PedidoRow({ order, isLast, showDate, onEdit, onViewImage }) {
-  const meta = getOrderStatusMeta(order);
+function PedidoRow({ pedido, isLast, showDate, onEdit, onViewImage }) {
+  const meta = obterStatusPedido(pedido);
   const payMeta =
-    paymentStatusMeta[order.paymentStatus] || paymentStatusMeta.pendente;
-  const itemsLabel = (order.items || [])
-    .map((i) => `${i.qty}x ${i.name}`)
+    paymentStatusMeta[pedido.statusPagamento] || paymentStatusMeta.pendente;
+  const itemsLabel = (pedido.itens || [])
+    .map((i) => `${i.quantidade}x ${i.nome}`)
     .join(", ");
-  const referenceImages = getOrderReferenceImages(order);
+  const imagemReferencias = obterImagensReferenciaPedido(pedido);
 
   return (
     <div
@@ -342,37 +342,37 @@ function PedidoRow({ order, isLast, showDate, onEdit, onViewImage }) {
           {showDate ? (
             <>
               <span className="text-xs font-semibold text-slate-500">
-                {toBRDate(order.deliveryDate)}
+                {toBRDate(pedido.dataEntrega)}
               </span>
               <span className="text-xs text-slate-400">
-                {order.deliveryTime}
+                {pedido.horarioEntrega}
               </span>
             </>
           ) : (
             <span className="flex items-center gap-1 text-sm font-semibold text-slate-700">
               <Clock size={13} className="text-slate-400" />
-              {order.deliveryTime}
+              {pedido.horarioEntrega}
             </span>
           )}
         </div>
 
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-slate-900">
-            {order.client?.name}
-            {order.deliveryType === "retirada" ? (
+            {pedido.cliente?.nome}
+            {pedido.tipoEntrega === "retirada" ? (
               <span className="flex items-center gap-1 text-xs font-normal text-slate-400">
                 <Store size={12} /> Retirada
               </span>
             ) : (
               <span className="flex min-w-0 items-center gap-1 text-xs font-normal text-slate-400">
                 <MapPin size={12} className="shrink-0" />
-                <span className="max-w-[220px] truncate">{order.address}</span>
+                <span className="max-w-[220px] truncate">{pedido.endereco}</span>
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span className="max-w-[420px] truncate">{itemsLabel}</span>
-            <ReferencePhotosBadge images={referenceImages} onOpen={onViewImage} />
+            <FotosReferenciaBadge images={imagemReferencias} onOpen={onViewImage} />
           </div>
         </div>
       </div>
@@ -392,7 +392,7 @@ function PedidoRow({ order, isLast, showDate, onEdit, onViewImage }) {
           {meta.label}
         </span>
         <span className="w-24 text-right text-sm font-bold text-slate-900">
-          {formatBRL(order.total)}
+          {formatBRL(pedido.total)}
         </span>
         <button
           onClick={onEdit}

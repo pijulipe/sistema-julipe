@@ -15,24 +15,24 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
-import { useOrders } from "./OrdersContext";
-import { useProducts } from "./ProductsContext";
+import { usePedidos } from "./PedidosContext";
+import { useProdutos } from "./ProdutosContext";
 import { useCombos } from "./CombosContext";
-import { useClients } from "./ClientsContext";
-import { useSettings } from "./SettingsContext";
-import { useStock } from "./StockContext";
-import { formatPhoneBR } from "./formatters";
+import { useClientes } from "./ClientesContext";
+import { useConfiguracoes } from "./ConfiguracoesContext";
+import { useEstoque } from "./EstoqueContext";
+import { formatarTelefoneBR } from "./formatadores";
 import {
-  decomposeOrderItems,
-  sumByCategory,
-  getExceededCategories,
-  decomposeItemsByProduct,
-  sumByProduct,
-} from "./capacity";
+  decomporItensPedido,
+  somarPorCategoria,
+  obterCategoriasExcedidas,
+  decomporItensPorProduto,
+  somarPorProduto,
+} from "./capacidade";
 import {
-  ReferenceImageField,
-  ReferenceLightbox,
-} from "./ReferencePhotos";
+  CampoImagemReferencia,
+  LightboxReferencia,
+} from "./FotosReferencia";
 
 /* ---------------------------------------------------------
    Helpers/constantes
@@ -59,146 +59,146 @@ const toBRDate = (iso) => {
    Main component
 --------------------------------------------------------- */
 export default function NovoPedidoModal({ onClose = () => {} }) {
-  const { orders, addOrder } = useOrders();
-  const { products } = useProducts();
+  const { pedidos, adicionarPedido } = usePedidos();
+  const { produtos } = useProdutos();
   const { combos } = useCombos();
-  const { clients, addClient, updateClient, findClientByPhone } = useClients();
-  const { getSlotsForDate, alertThresholds, autoDeductStock } = useSettings();
-  const { getStock, removeQuantity } = useStock();
+  const { clientes, adicionarCliente, atualizarCliente, buscarClientePorTelefone } = useClientes();
+  const { obterHorariosPorData, limitesAlerta, baixaAutomaticaEstoque } = useConfiguracoes();
+  const { obterEstoque, removerQuantidade } = useEstoque();
   const [step, setStep] = useState(0); // 0 Cliente, 1 Produtos, 2 Entrega, 3 Pagamento
-  const [lightboxImage, setLightboxImage] = useState(null);
+  const [imagemLightbox, setLightboxImage] = useState(null);
 
   // ---- Cliente ----
-  const [clientTab, setClientTab] = useState("existente"); // existente | novo
-  const [clientSearch, setClientSearch] = useState("");
-  const [selectedClient, setSelectedClient] = useState(null);
-  const [newClient, setNewClient] = useState({ name: "", phone: "" });
-  const [newClientError, setNewClientError] = useState("");
+  const [abaCliente, setAbaCliente] = useState("existente"); // existente | novo
+  const [buscaCliente, setBuscaCliente] = useState("");
+  const [clienteSelecionado, setClienteSelecionado] = useState(null);
+  const [novoCliente, setNovoCliente] = useState({ nome: "", telefone: "" });
+  const [erroNovoCliente, setNovoClienteError] = useState("");
 
   // ---- Produtos ----
-  const [productTab, setProductTab] = useState("produtos"); // produtos | combos
-  const [productSearch, setProductSearch] = useState("");
-  const [cartItems, setCartItems] = useState([]); // {id, name, price, qty}
+  const [abaProduto, setAbaProduto] = useState("produtos"); // produtos | combos
+  const [buscaProduto, setBuscaProduto] = useState("");
+  const [cartItems, setCartItems] = useState([]); // {id, nome, preco, quantidade}
 
   // ---- Entrega ----
-  const [deliveryDate, setDeliveryDate] = useState(todayISO());
-  const [deliveryTime, setDeliveryTime] = useState("");
-  const [deliveryType, setDeliveryType] = useState("entrega"); // entrega | retirada
-  const [notes, setNotes] = useState("");
+  const [dataEntrega, setDeliveryDate] = useState(todayISO());
+  const [horarioEntrega, setDeliveryTime] = useState("");
+  const [tipoEntrega, setDeliveryType] = useState("entrega"); // entrega | retirada
+  const [observacoes, setNotes] = useState("");
   // Endereço de entrega deste pedido — só é pedido/exigido quando
-  // deliveryType === "entrega" (retirada no local não precisa de endereço).
+  // tipoEntrega === "entrega" (retirada no local não precisa de endereço).
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryNumber, setDeliveryNumber] = useState("");
   const [deliveryNeighborhood, setDeliveryNeighborhood] = useState("");
   const [deliveryReference, setDeliveryReference] = useState("");
 
   // ---- Pagamento ----
-  const [paymentMethod, setPaymentMethod] = useState("pix"); // pix | dinheiro | cartao | outro
-  const [paymentStatus, setPaymentStatus] = useState("pendente"); // pendente | parcial | pago
-  const [discountPercent, setDiscountPercent] = useState(0);
+  const [formaPagamento, setPaymentMethod] = useState("pix"); // pix | dinheiro | cartao | outro
+  const [statusPagamento, setPaymentStatus] = useState("pendente"); // pendente | parcial | pago
+  const [descontoPercentual, setDiscountPercent] = useState(0);
 
   // Ao escolher (ou trocar) o cliente, pré-preenche o endereço de entrega
   // com o que já está no cadastro dele — mas continua editável, já que o
   // endereço desta entrega específica pode ser diferente do cadastro.
   useEffect(() => {
-    if (!selectedClient) return;
-    setDeliveryAddress(selectedClient.address || "");
-    setDeliveryNumber(selectedClient.number || "");
-    setDeliveryNeighborhood(selectedClient.neighborhood || "");
-    setDeliveryReference(selectedClient.reference || "");
+    if (!clienteSelecionado) return;
+    setDeliveryAddress(clienteSelecionado.endereco || "");
+    setDeliveryNumber(clienteSelecionado.number || "");
+    setDeliveryNeighborhood(clienteSelecionado.bairro || "");
+    setDeliveryReference(clienteSelecionado.reference || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClient?.id]);
+  }, [clienteSelecionado?.id]);
 
   /* ---------------- derived values ---------------- */
-  const filteredClients = useMemo(() => {
-    const q = clientSearch.trim().toLowerCase();
-    if (!q) return clients;
-    return clients.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q)
+  const clientesFiltrados = useMemo(() => {
+    const q = buscaCliente.trim().toLowerCase();
+    if (!q) return clientes;
+    return clientes.filter(
+      (c) => c.nome.toLowerCase().includes(q) || c.telefone.includes(q)
     );
-  }, [clients, clientSearch]);
+  }, [clientes, buscaCliente]);
 
   // Quantidade de cada produto já comprometida em pedidos existentes, mas
   // que AINDA NÃO foi fisicamente descontada do estoque (inclui itens
   // vindos de combos, decompostos produto a produto).
   //
-  // Importante: usamos a flag `stockDeducted` GRAVADA em cada pedido no
+  // Importante: usamos a flag `estoqueBaixado` GRAVADA em cada pedido no
   // momento em que ele foi criado — não o estado atual do interruptor
-  // `autoDeductStock`. Um pedido feito com a baixa automática ligada já
-  // teve seu estoque físico reduzido (via removeQuantity) na hora; se
+  // `baixaAutomaticaEstoque`. Um pedido feito com a baixa automática ligada já
+  // teve seu estoque físico reduzido (via removerQuantidade) na hora; se
   // depois o interruptor for desligado, esse pedido não deve voltar a
   // "reservar" estoque de novo, senão o desconto conta em dobro para sempre.
-  const reservedByProduct = useMemo(
+  const reservadoPorProduto = useMemo(
     () =>
-      sumByProduct(
-        decomposeItemsByProduct(
-          orders.filter((o) => !o.stockDeducted).flatMap((o) => o.items),
+      somarPorProduto(
+        decomporItensPorProduto(
+          pedidos.filter((o) => !o.estoqueBaixado).flatMap((o) => o.itens),
           combos
         )
       ),
-    [orders, combos]
+    [pedidos, combos]
   );
 
   // Quantidade de cada produto presente no carrinho atual (ainda não salvo).
-  const cartByProduct = useMemo(
-    () => sumByProduct(decomposeItemsByProduct(cartItems, combos)),
+  const carrinhoPorProduto = useMemo(
+    () => somarPorProduto(decomporItensPorProduto(cartItems, combos)),
     [cartItems, combos]
   );
 
-  const filteredProducts = useMemo(() => {
-    const q = productSearch.trim().toLowerCase();
+  const produtosFiltrados = useMemo(() => {
+    const q = buscaProduto.trim().toLowerCase();
     const base = q
-      ? products.filter((p) => p.name.toLowerCase().includes(q))
-      : products;
+      ? produtos.filter((p) => p.nome.toLowerCase().includes(q))
+      : produtos;
     return base.map((p) => {
-      const { quantity } = getStock(p.id);
-      // reservedByProduct já exclui pedidos cujo estoque já foi
+      const { quantidade } = obterEstoque(p.id);
+      // reservadoPorProduto já exclui pedidos cujo estoque já foi
       // fisicamente descontado — não depende do interruptor atual.
-      const remaining = quantity - (reservedByProduct[p.id] || 0);
-      return { ...p, stockRemaining: remaining };
+      const remaining = quantidade - (reservadoPorProduto[p.id] || 0);
+      return { ...p, estoqueRestante: remaining };
     });
-  }, [products, productSearch, getStock, reservedByProduct]);
+  }, [produtos, buscaProduto, obterEstoque, reservadoPorProduto]);
 
-  const productName = (id) =>
-    products.find((p) => p.id === id)?.name || "Produto removido";
+  const nomeProduto = (id) =>
+    produtos.find((p) => p.id === id)?.nome || "Produto removido";
 
-  const combosWithLabel = useMemo(
+  const combosComRotulo = useMemo(
     () =>
       combos.map((c) => ({
         ...c,
-        itemsLabel: c.items
-          .map((i) => `${i.qty}x ${productName(i.productId)}`)
+        itemsLabel: c.itens
+          .map((i) => `${i.quantidade}x ${nomeProduto(i.idProduto)}`)
           .join(", "),
       })),
-    [combos, products]
+    [combos, produtos]
   );
 
-  const filteredCombos = useMemo(() => {
-    const q = productSearch.trim().toLowerCase();
-    if (!q) return combosWithLabel;
-    return combosWithLabel.filter((c) => c.name.toLowerCase().includes(q));
-  }, [combosWithLabel, productSearch]);
+  const combosFiltrados = useMemo(() => {
+    const q = buscaProduto.trim().toLowerCase();
+    if (!q) return combosComRotulo;
+    return combosComRotulo.filter((c) => c.nome.toLowerCase().includes(q));
+  }, [combosComRotulo, buscaProduto]);
 
-  const subtotal = cartItems.reduce((sum, i) => sum + i.price * i.qty, 0);
-  const discountValue = (subtotal * (Number(discountPercent) || 0)) / 100;
-  const total = Math.max(subtotal - discountValue, 0);
+  const subtotal = cartItems.reduce((sum, i) => sum + i.preco * i.quantidade, 0);
+  const valorDesconto = (subtotal * (Number(descontoPercentual) || 0)) / 100;
+  const total = Math.max(subtotal - valorDesconto, 0);
 
   // Horários agendáveis (a cada 15 min) para a data escolhida, conforme o
   // horário de funcionamento configurado. Se o dia estiver fechado, a
   // lista vem vazia.
-  const daySlots = useMemo(
-    () => getSlotsForDate(deliveryDate),
-    [getSlotsForDate, deliveryDate]
+  const horariosDoDia = useMemo(
+    () => obterHorariosPorData(dataEntrega),
+    [obterHorariosPorData, dataEntrega]
   );
 
   // Se a data mudar e o horário selecionado não existir mais nos slots do
   // novo dia, limpa a seleção para forçar escolher um horário válido.
   useEffect(() => {
-    if (deliveryTime && !daySlots.includes(deliveryTime)) {
+    if (horarioEntrega && !horariosDoDia.includes(horarioEntrega)) {
       setDeliveryTime("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daySlots]);
+  }, [horariosDoDia]);
 
   /* ---------------- alerta de estoque ---------------- */
   // Compara o que falta comprometer com o estoque disponível de cada
@@ -206,37 +206,37 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
   // "esgotado": este pedido usa exatamente o que resta.
   // "insuficiente": este pedido pede mais do que existe em estoque.
   //
-  // reservedByProduct já representa apenas os pedidos cujo estoque ainda
+  // reservadoPorProduto já representa apenas os pedidos cujo estoque ainda
   // não foi fisicamente descontado (ver comentário acima) — então basta
   // somar o carrinho atual a isso, sem depender do interruptor atual.
-  const stockAlerts = useMemo(() => {
+  const alertasEstoque = useMemo(() => {
     const alerts = [];
-    Object.entries(cartByProduct).forEach(([productIdStr, cartQty]) => {
-      const productId = Number(productIdStr);
-      const product = products.find((p) => p.id === productId);
-      if (!product) return;
-      const { quantity: available } = getStock(productId);
-      const committed = (reservedByProduct[productId] || 0) + cartQty;
+    Object.entries(carrinhoPorProduto).forEach(([idProdutoStr, cartQty]) => {
+      const idProduto = Number(idProdutoStr);
+      const produto = produtos.find((p) => p.id === idProduto);
+      if (!produto) return;
+      const { quantidade: available } = obterEstoque(idProduto);
+      const committed = (reservadoPorProduto[idProduto] || 0) + cartQty;
       if (committed > available) {
         alerts.push({
-          productId,
-          name: product.name,
+          idProduto,
+          nome: produto.nome,
           available,
           level: "insuficiente",
         });
       } else if (available > 0 && committed === available) {
         alerts.push({
-          productId,
-          name: product.name,
+          idProduto,
+          nome: produto.nome,
           available,
           level: "esgotado",
         });
       }
     });
     return alerts;
-  }, [cartByProduct, reservedByProduct, products, getStock]);
+  }, [carrinhoPorProduto, reservadoPorProduto, produtos, obterEstoque]);
 
-  const hasInsufficientStock = stockAlerts.some(
+  const temEstoqueInsuficiente = alertasEstoque.some(
     (a) => a.level === "insuficiente"
   );
 
@@ -245,21 +245,21 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
   // carrinho atual (que ainda não foi salvo) para saber se, ao confirmar
   // este pedido, algum limite de categoria seria estourado.
   const capacityAlerts = useMemo(() => {
-    if (!deliveryTime) return [];
-    const hourBucket = deliveryTime.slice(0, 2);
-    const existingItems = orders
+    if (!horarioEntrega) return [];
+    const faixaHora = horarioEntrega.slice(0, 2);
+    const existingItems = pedidos
       .filter(
         (o) =>
-          o.deliveryDate === deliveryDate &&
-          (o.deliveryTime || "").slice(0, 2) === hourBucket &&
+          o.dataEntrega === dataEntrega &&
+          (o.horarioEntrega || "").slice(0, 2) === faixaHora &&
           o.status !== "entregue"
       )
-      .flatMap((o) => o.items);
-    const totals = sumByCategory(
-      decomposeOrderItems([...existingItems, ...cartItems], products, combos)
+      .flatMap((o) => o.itens);
+    const totals = somarPorCategoria(
+      decomporItensPedido([...existingItems, ...cartItems], produtos, combos)
     );
-    return getExceededCategories(totals, alertThresholds);
-  }, [orders, cartItems, products, combos, deliveryDate, deliveryTime, alertThresholds]);
+    return obterCategoriasExcedidas(totals, limitesAlerta);
+  }, [pedidos, cartItems, produtos, combos, dataEntrega, horarioEntrega, limitesAlerta]);
 
   /* ---------------- actions ---------------- */
   const addItem = (item) => {
@@ -267,17 +267,17 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
       const existing = prev.find((i) => i.id === item.id);
       if (existing) {
         return prev.map((i) =>
-          i.id === item.id ? { ...i, qty: i.qty + 1 } : i
+          i.id === item.id ? { ...i, quantidade: i.quantidade + 1 } : i
         );
       }
-      return [...prev, { ...item, qty: 1 }];
+      return [...prev, { ...item, quantidade: 1 }];
     });
   };
 
-  const updateQty = (id, qty) => {
+  const updateQty = (id, quantidade) => {
     setCartItems((prev) =>
       prev
-        .map((i) => (i.id === id ? { ...i, qty: Math.max(1, qty) } : i))
+        .map((i) => (i.id === id ? { ...i, quantidade: Math.max(1, quantidade) } : i))
         .filter(Boolean)
     );
   };
@@ -296,7 +296,7 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
     reader.onload = () => {
       setCartItems((prev) =>
         prev.map((i) =>
-          i.id === id ? { ...i, referenceImage: reader.result } : i
+          i.id === id ? { ...i, imagemReferencia: reader.result } : i
         )
       );
     };
@@ -305,54 +305,54 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
 
   const removeItemImage = (id) => {
     setCartItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, referenceImage: null } : i))
+      prev.map((i) => (i.id === id ? { ...i, imagemReferencia: null } : i))
     );
   };
 
-  const createClientAndContinue = () => {
-    if (!newClient.name.trim() || !newClient.phone.trim()) return;
+  const criarClienteEContinuar = () => {
+    if (!novoCliente.nome.trim() || !novoCliente.telefone.trim()) return;
 
-    const duplicate = findClientByPhone(newClient.phone);
+    const duplicate = buscarClientePorTelefone(novoCliente.telefone);
     if (duplicate) {
-      setNewClientError(
-        `Já existe um cliente cadastrado com esse telefone: ${duplicate.name}. Use a aba "Cliente Existente" para selecioná-lo.`
+      setNovoClienteError(
+        `Já existe um cliente cadastrado com esse telefone: ${duplicate.nome}. Use a aba "Cliente Existente" para selecioná-lo.`
       );
       return;
     }
 
-    const created = addClient({
-      name: newClient.name.trim(),
-      phone: newClient.phone.trim(),
+    const created = adicionarCliente({
+      nome: novoCliente.nome.trim(),
+      telefone: novoCliente.telefone.trim(),
     });
-    setSelectedClient(created);
+    setClienteSelecionado(created);
     setStep(1);
   };
 
   /* ---------------- step validation ---------------- */
   const canAdvance = () => {
-    if (step === 0) return !!selectedClient;
+    if (step === 0) return !!clienteSelecionado;
     if (step === 1) return cartItems.length > 0;
     if (step === 2)
       return (
-        !!deliveryTime &&
-        (deliveryType === "retirada" || !!deliveryAddress.trim())
+        !!horarioEntrega &&
+        (tipoEntrega === "retirada" || !!deliveryAddress.trim())
       );
     return true;
   };
 
   const helperText = () => {
-    if (step === 0) return selectedClient ? "" : "Selecione um cliente para continuar";
+    if (step === 0) return clienteSelecionado ? "" : "Selecione um cliente para continuar";
     if (step === 1) {
       if (!cartItems.length) return "Adicione ao menos 1 item";
-      if (hasInsufficientStock)
+      if (temEstoqueInsuficiente)
         return "Atenção: não há estoque suficiente para um ou mais itens — o pedido pode ser feito mesmo assim";
       return "";
     }
     if (step === 2) {
-      if (daySlots.length === 0)
+      if (horariosDoDia.length === 0)
         return "Estabelecimento fechado nesta data — escolha outra data";
-      if (!deliveryTime) return "Selecione um horário";
-      if (deliveryType === "entrega" && !deliveryAddress.trim())
+      if (!horarioEntrega) return "Selecione um horário";
+      if (tipoEntrega === "entrega" && !deliveryAddress.trim())
         return "Informe o endereço de entrega";
       return "";
     }
@@ -371,14 +371,14 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
     // Baixa automática de estoque: desconta a quantidade de cada produto
     // do pedido (decompondo combos nos produtos que os compõem). Permite
     // ficar negativo — o déficit é o que alimenta o alerta na página inicial.
-    if (autoDeductStock) {
-      decomposeItemsByProduct(cartItems, combos).forEach(({ productId, qty }) => {
-        removeQuantity(productId, qty, true);
+    if (baixaAutomaticaEstoque) {
+      decomporItensPorProduto(cartItems, combos).forEach(({ idProduto, quantidade }) => {
+        removerQuantidade(idProduto, quantidade, true);
       });
     }
 
-    const address =
-      deliveryType === "retirada"
+    const endereco =
+      tipoEntrega === "retirada"
         ? "Retirada no local"
         : deliveryAddress.trim()
         ? `${deliveryAddress.trim()}${
@@ -389,39 +389,39 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
     // Se for entrega e o endereço foi preenchido, salva (ou atualiza) o
     // endereço no cadastro do cliente — assim, da próxima vez que um
     // pedido for criado para ele, o endereço já vem pré-preenchido
-    // automaticamente (ver o useEffect que observa selectedClient acima),
+    // automaticamente (ver o useEffect que observa clienteSelecionado acima),
     // sem precisar digitar tudo de novo.
-    if (deliveryType === "entrega" && selectedClient && deliveryAddress.trim()) {
-      updateClient(selectedClient.id, {
-        address: deliveryAddress.trim(),
+    if (tipoEntrega === "entrega" && clienteSelecionado && deliveryAddress.trim()) {
+      atualizarCliente(clienteSelecionado.id, {
+        endereco: deliveryAddress.trim(),
         number: deliveryNumber.trim(),
-        neighborhood: deliveryNeighborhood.trim(),
+        bairro: deliveryNeighborhood.trim(),
         reference: deliveryReference.trim(),
       });
     }
 
-    addOrder({
-      client: selectedClient,
-      items: cartItems,
-      deliveryDate,
-      deliveryTime,
-      deliveryType,
-      notes,
-      paymentMethod,
-      paymentStatus,
-      discountPercent: Number(discountPercent) || 0,
-      discountValue,
+    adicionarPedido({
+      cliente: clienteSelecionado,
+      itens: cartItems,
+      dataEntrega,
+      horarioEntrega,
+      tipoEntrega,
+      observacoes,
+      formaPagamento,
+      statusPagamento,
+      descontoPercentual: Number(descontoPercentual) || 0,
+      valorDesconto,
       subtotal,
       total,
-      address,
+      endereco,
       // Guardados no próprio pedido (podem diferir do cadastro do
       // cliente para esta entrega específica). Vazios em pedidos de
       // retirada, já que não se aplicam.
-      neighborhood: deliveryType === "entrega" ? deliveryNeighborhood.trim() : "",
-      reference: deliveryType === "entrega" ? deliveryReference.trim() : "",
+      bairro: tipoEntrega === "entrega" ? deliveryNeighborhood.trim() : "",
+      reference: tipoEntrega === "entrega" ? deliveryReference.trim() : "",
       // Grava o que aconteceu de fato com o estoque NESTE pedido,
       // independente do que o interruptor vier a ser depois.
-      stockDeducted: autoDeductStock,
+      estoqueBaixado: baixaAutomaticaEstoque,
     });
 
     onClose();
@@ -484,44 +484,44 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
           <div className="px-6 py-6">
             {step === 0 && (
               <ClienteStep
-                clientTab={clientTab}
-                setClientTab={setClientTab}
-                clientSearch={clientSearch}
-                setClientSearch={setClientSearch}
-                filteredClients={filteredClients}
-                selectedClient={selectedClient}
-                setSelectedClient={setSelectedClient}
-                newClient={newClient}
-                setNewClient={setNewClient}
-                createClientAndContinue={createClientAndContinue}
-                newClientError={newClientError}
-                setNewClientError={setNewClientError}
+                abaCliente={abaCliente}
+                setAbaCliente={setAbaCliente}
+                buscaCliente={buscaCliente}
+                setBuscaCliente={setBuscaCliente}
+                clientesFiltrados={clientesFiltrados}
+                clienteSelecionado={clienteSelecionado}
+                setClienteSelecionado={setClienteSelecionado}
+                novoCliente={novoCliente}
+                setNovoCliente={setNovoCliente}
+                criarClienteEContinuar={criarClienteEContinuar}
+                erroNovoCliente={erroNovoCliente}
+                setNovoClienteError={setNovoClienteError}
               />
             )}
 
             {step === 1 && (
               <ProdutosStep
-                productTab={productTab}
-                setProductTab={setProductTab}
-                productSearch={productSearch}
-                setProductSearch={setProductSearch}
-                filteredProducts={filteredProducts}
-                filteredCombos={filteredCombos}
+                abaProduto={abaProduto}
+                setAbaProduto={setAbaProduto}
+                buscaProduto={buscaProduto}
+                setBuscaProduto={setBuscaProduto}
+                produtosFiltrados={produtosFiltrados}
+                combosFiltrados={combosFiltrados}
                 addItem={addItem}
               />
             )}
 
             {step === 2 && (
               <EntregaStep
-                deliveryDate={deliveryDate}
+                dataEntrega={dataEntrega}
                 setDeliveryDate={setDeliveryDate}
-                deliveryTime={deliveryTime}
+                horarioEntrega={horarioEntrega}
                 setDeliveryTime={setDeliveryTime}
-                deliveryType={deliveryType}
+                tipoEntrega={tipoEntrega}
                 setDeliveryType={setDeliveryType}
-                notes={notes}
+                observacoes={observacoes}
                 setNotes={setNotes}
-                daySlots={daySlots}
+                horariosDoDia={horariosDoDia}
                 capacityAlerts={capacityAlerts}
                 deliveryAddress={deliveryAddress}
                 setDeliveryAddress={setDeliveryAddress}
@@ -536,11 +536,11 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
 
             {step === 3 && (
               <PagamentoStep
-                paymentMethod={paymentMethod}
+                formaPagamento={formaPagamento}
                 setPaymentMethod={setPaymentMethod}
-                paymentStatus={paymentStatus}
+                statusPagamento={statusPagamento}
                 setPaymentStatus={setPaymentStatus}
-                discountPercent={discountPercent}
+                descontoPercentual={descontoPercentual}
                 setDiscountPercent={setDiscountPercent}
                 subtotal={subtotal}
               />
@@ -557,7 +557,7 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
 
           <div className="px-5 py-4">
             {/* Client block */}
-            {selectedClient ? (
+            {clienteSelecionado ? (
               <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50">
@@ -565,10 +565,10 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
-                      {selectedClient.name}
+                      {clienteSelecionado.nome}
                     </div>
                     <div className="text-xs text-slate-400">
-                      {selectedClient.phone}
+                      {clienteSelecionado.telefone}
                     </div>
                   </div>
                 </div>
@@ -591,15 +591,15 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
             )}
 
             {/* Delivery badge row */}
-            {step >= 2 && deliveryTime && (
+            {step >= 2 && horarioEntrega && (
               <div className="mb-3 flex items-center gap-4 text-xs text-slate-500">
                 <span className="flex items-center gap-1">
-                  <Calendar size={13} /> {toBRDate(deliveryDate)}
+                  <Calendar size={13} /> {toBRDate(dataEntrega)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Clock size={13} /> {deliveryTime}
+                  <Clock size={13} /> {horarioEntrega}
                 </span>
-                <span className="ml-auto capitalize">{deliveryType}</span>
+                <span className="ml-auto capitalize">{tipoEntrega}</span>
               </div>
             )}
 
@@ -615,13 +615,13 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
                   <div key={item.id} className="flex items-center gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-slate-800">
-                        {item.name}
+                        {item.nome}
                       </div>
                       <div className="text-xs text-slate-400">
-                        {formatBRL(item.price)}
+                        {formatBRL(item.preco)}
                       </div>
                     </div>
-                    <ReferenceImageField
+                    <CampoImagemReferencia
                       item={item}
                       size={28}
                       onOpen={setLightboxImage}
@@ -631,19 +631,19 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
                     <input
                       type="number"
                       min={1}
-                      value={item.qty}
+                      value={item.quantidade}
                       onChange={(e) =>
                         updateQty(item.id, parseInt(e.target.value, 10) || 1)
                       }
                       className="w-12 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm"
                     />
                     <span className="w-20 text-right text-sm font-semibold text-slate-800">
-                      {formatBRL(item.price * item.qty)}
+                      {formatBRL(item.preco * item.quantidade)}
                     </span>
                     <button
                       onClick={() => removeItem(item.id)}
                       className="text-slate-300 hover:text-red-500"
-                      aria-label={`Remover ${item.name}`}
+                      aria-label={`Remover ${item.nome}`}
                     >
                       <Trash2 size={15} />
                     </button>
@@ -667,10 +667,10 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
                 <span>Subtotal</span>
                 <span>{formatBRL(subtotal)}</span>
               </div>
-              {Number(discountPercent) > 0 && (
+              {Number(descontoPercentual) > 0 && (
                 <div className="flex justify-between text-sm text-slate-500">
-                  <span>Desconto ({Number(discountPercent)}%)</span>
-                  <span>-{formatBRL(discountValue)}</span>
+                  <span>Desconto ({Number(descontoPercentual)}%)</span>
+                  <span>-{formatBRL(valorDesconto)}</span>
                 </div>
               )}
               <div className="flex justify-between text-base font-bold text-slate-900">
@@ -695,7 +695,7 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
                   onClick={goNext}
                   disabled={!canAdvance()}
                   title={
-                    hasInsufficientStock
+                    temEstoqueInsuficiente
                       ? "Atenção: estoque insuficiente para um ou mais itens deste pedido"
                       : undefined
                   }
@@ -706,26 +706,26 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
                   }`}
                 >
                   Avançar
-                  {hasInsufficientStock && <span aria-hidden="true">⚠️</span>}
+                  {temEstoqueInsuficiente && <span aria-hidden="true">⚠️</span>}
                   <ChevronRight size={16} />
                 </button>
               ) : (
                 <button
                   onClick={finalizePedido}
-                  disabled={!selectedClient || cartItems.length === 0}
+                  disabled={!clienteSelecionado || cartItems.length === 0}
                   title={
-                    hasInsufficientStock
+                    temEstoqueInsuficiente
                       ? "Atenção: estoque insuficiente para um ou mais itens deste pedido"
                       : undefined
                   }
                   className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white transition-colors ${
-                    selectedClient && cartItems.length > 0
+                    clienteSelecionado && cartItems.length > 0
                       ? "bg-emerald-600 hover:bg-emerald-700"
                       : "cursor-not-allowed bg-emerald-300"
                   }`}
                 >
                   <CheckCircle2 size={16} /> Finalizar Pedido
-                  {hasInsufficientStock && <span aria-hidden="true">⚠️</span>}
+                  {temEstoqueInsuficiente && <span aria-hidden="true">⚠️</span>}
                 </button>
               )}
             </div>
@@ -739,8 +739,8 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
         </div>
       </div>
 
-      <ReferenceLightbox
-        image={lightboxImage}
+      <LightboxReferencia
+        imagem={imagemLightbox}
         onClose={() => setLightboxImage(null)}
       />
     </div>
@@ -751,26 +751,26 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
    Step 1 — Cliente
 --------------------------------------------------------- */
 function ClienteStep({
-  clientTab,
-  setClientTab,
-  clientSearch,
-  setClientSearch,
-  filteredClients,
-  selectedClient,
-  setSelectedClient,
-  newClient,
-  setNewClient,
-  createClientAndContinue,
-  newClientError,
-  setNewClientError,
+  abaCliente,
+  setAbaCliente,
+  buscaCliente,
+  setBuscaCliente,
+  clientesFiltrados,
+  clienteSelecionado,
+  setClienteSelecionado,
+  novoCliente,
+  setNovoCliente,
+  criarClienteEContinuar,
+  erroNovoCliente,
+  setNovoClienteError,
 }) {
   return (
     <div>
       <div className="mb-5 flex gap-3">
         <button
-          onClick={() => setClientTab("existente")}
+          onClick={() => setAbaCliente("existente")}
           className={`flex-1 rounded-xl py-3 text-sm font-semibold transition-colors ${
-            clientTab === "existente"
+            abaCliente === "existente"
               ? "bg-blue-600 text-white"
               : "bg-slate-100 text-slate-500 hover:bg-slate-200"
           }`}
@@ -778,9 +778,9 @@ function ClienteStep({
           Cliente Existente
         </button>
         <button
-          onClick={() => setClientTab("novo")}
+          onClick={() => setAbaCliente("novo")}
           className={`flex-1 rounded-xl py-3 text-sm font-semibold transition-colors ${
-            clientTab === "novo"
+            abaCliente === "novo"
               ? "bg-blue-600 text-white"
               : "bg-slate-100 text-slate-500 hover:bg-slate-200"
           }`}
@@ -789,7 +789,7 @@ function ClienteStep({
         </button>
       </div>
 
-      {clientTab === "existente" ? (
+      {abaCliente === "existente" ? (
         <div>
           <div className="relative mb-4">
             <Search
@@ -797,20 +797,20 @@ function ClienteStep({
               className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
-              value={clientSearch}
-              onChange={(e) => setClientSearch(e.target.value)}
+              value={buscaCliente}
+              onChange={(e) => setBuscaCliente(e.target.value)}
               placeholder="Buscar cliente por nome ou telefone..."
               className="w-full rounded-xl bg-slate-100 py-3 pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div className="space-y-2">
-            {filteredClients.map((c) => {
-              const isSelected = selectedClient?.id === c.id;
+            {clientesFiltrados.map((c) => {
+              const isSelected = clienteSelecionado?.id === c.id;
               return (
                 <button
                   key={c.id}
-                  onClick={() => setSelectedClient(c)}
+                  onClick={() => setClienteSelecionado(c)}
                   className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
                     isSelected
                       ? "border-blue-300 bg-blue-50"
@@ -818,18 +818,18 @@ function ClienteStep({
                   }`}
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-600">
-                    {c.name.charAt(0)}
+                    {c.nome.charAt(0)}
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
-                      {c.name}
+                      {c.nome}
                     </div>
-                    <div className="text-xs text-slate-400">{c.phone}</div>
+                    <div className="text-xs text-slate-400">{c.telefone}</div>
                   </div>
                 </button>
               );
             })}
-            {filteredClients.length === 0 && (
+            {clientesFiltrados.length === 0 && (
               <p className="py-6 text-center text-sm text-slate-400">
                 Nenhum cliente encontrado
               </p>
@@ -838,30 +838,30 @@ function ClienteStep({
         </div>
       ) : (
         <div className="space-y-4">
-          {newClientError && (
+          {erroNovoCliente && (
             <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
-              {newClientError}
+              {erroNovoCliente}
             </div>
           )}
 
           <Field label="Nome" required>
             <input
-              value={newClient.name}
+              value={novoCliente.nome}
               onChange={(e) => {
-                setNewClientError("");
-                setNewClient((s) => ({ ...s, name: e.target.value }));
+                setNovoClienteError("");
+                setNovoCliente((s) => ({ ...s, nome: e.target.value }));
               }}
               className="w-full rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </Field>
           <Field label="Telefone" required>
             <input
-              value={newClient.phone}
+              value={novoCliente.telefone}
               onChange={(e) => {
-                setNewClientError("");
-                setNewClient((s) => ({
+                setNovoClienteError("");
+                setNovoCliente((s) => ({
                   ...s,
-                  phone: formatPhoneBR(e.target.value),
+                  telefone: formatarTelefoneBR(e.target.value),
                 }));
               }}
               placeholder="(11) 90000-0000"
@@ -876,10 +876,10 @@ function ClienteStep({
           </p>
 
           <button
-            onClick={createClientAndContinue}
-            disabled={!newClient.name.trim() || !newClient.phone.trim()}
+            onClick={criarClienteEContinuar}
+            disabled={!novoCliente.nome.trim() || !novoCliente.telefone.trim()}
             className={`w-full rounded-xl py-3 text-sm font-semibold text-white transition-colors ${
-              newClient.name.trim() && newClient.phone.trim()
+              novoCliente.nome.trim() && novoCliente.telefone.trim()
                 ? "bg-blue-600 hover:bg-blue-700"
                 : "cursor-not-allowed bg-blue-300"
             }`}
@@ -896,21 +896,21 @@ function ClienteStep({
    Step 2 — Produtos
 --------------------------------------------------------- */
 function ProdutosStep({
-  productTab,
-  setProductTab,
-  productSearch,
-  setProductSearch,
-  filteredProducts,
-  filteredCombos,
+  abaProduto,
+  setAbaProduto,
+  buscaProduto,
+  setBuscaProduto,
+  produtosFiltrados,
+  combosFiltrados,
   addItem,
 }) {
   return (
     <div>
       <div className="mb-5 flex gap-3">
         <button
-          onClick={() => setProductTab("produtos")}
+          onClick={() => setAbaProduto("produtos")}
           className={`flex-1 rounded-xl py-3 text-sm font-semibold transition-colors ${
-            productTab === "produtos"
+            abaProduto === "produtos"
               ? "bg-blue-600 text-white"
               : "bg-slate-100 text-slate-500 hover:bg-slate-200"
           }`}
@@ -918,9 +918,9 @@ function ProdutosStep({
           Produtos
         </button>
         <button
-          onClick={() => setProductTab("combos")}
+          onClick={() => setAbaProduto("combos")}
           className={`flex-1 rounded-xl py-3 text-sm font-semibold transition-colors ${
-            productTab === "combos"
+            abaProduto === "combos"
               ? "bg-blue-600 text-white"
               : "bg-slate-100 text-slate-500 hover:bg-slate-200"
           }`}
@@ -929,7 +929,7 @@ function ProdutosStep({
         </button>
       </div>
 
-      {productTab === "produtos" ? (
+      {abaProduto === "produtos" ? (
         <div>
           <div className="relative mb-4">
             <Search
@@ -937,38 +937,38 @@ function ProdutosStep({
               className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
+              value={buscaProduto}
+              onChange={(e) => setBuscaProduto(e.target.value)}
               placeholder="Buscar produto..."
               className="w-full rounded-xl bg-slate-100 py-3 pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {filteredProducts.map((p) => (
+            {produtosFiltrados.map((p) => (
               <button
                 key={p.id}
-                onClick={() => addItem({ id: p.id, name: p.name, price: p.price })}
+                onClick={() => addItem({ id: p.id, nome: p.nome, preco: p.preco })}
                 className="rounded-xl bg-slate-50 px-4 py-4 text-left transition-colors hover:bg-slate-100"
               >
                 <div className="text-sm font-semibold text-slate-900">
-                  {p.name}
+                  {p.nome}
                 </div>
                 <div className="mt-1 text-xs text-slate-400">
-                  {formatBRL(p.price)} / {p.unit?.toLowerCase() || "unidade"}
+                  {formatBRL(p.preco)} / {p.unidade?.toLowerCase() || "unidade"}
                 </div>
                 <div
                   className={`mt-1 text-xs font-medium ${
-                    p.stockRemaining <= 0 ? "text-red-500" : "text-slate-400"
+                    p.estoqueRestante <= 0 ? "text-red-500" : "text-slate-400"
                   }`}
                 >
-                  {p.stockRemaining > 0
-                    ? `Estoque: ${p.stockRemaining}`
+                  {p.estoqueRestante > 0
+                    ? `Estoque: ${p.estoqueRestante}`
                     : "Sem estoque disponível"}
                 </div>
               </button>
             ))}
-            {filteredProducts.length === 0 && (
+            {produtosFiltrados.length === 0 && (
               <p className="col-span-full py-6 text-center text-sm text-slate-400">
                 Nenhum produto encontrado
               </p>
@@ -977,32 +977,32 @@ function ProdutosStep({
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredCombos.map((combo) => (
+          {combosFiltrados.map((combo) => (
             <button
               key={combo.id}
               onClick={() =>
                 addItem({
                   id: `combo-${combo.id}`,
-                  name: combo.name,
-                  price: combo.price,
+                  nome: combo.nome,
+                  preco: combo.preco,
                 })
               }
               className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-4 py-4 text-left transition-colors hover:bg-slate-100"
             >
               <div>
                 <div className="text-sm font-semibold text-slate-900">
-                  {combo.name}
+                  {combo.nome}
                 </div>
                 <div className="mt-0.5 text-xs text-slate-400">
                   {combo.itemsLabel}
                 </div>
               </div>
               <span className="text-sm font-bold text-blue-600">
-                {formatBRL(combo.price)}
+                {formatBRL(combo.preco)}
               </span>
             </button>
           ))}
-          {filteredCombos.length === 0 && (
+          {combosFiltrados.length === 0 && (
             <p className="py-6 text-center text-sm text-slate-400">
               Nenhum combo encontrado
             </p>
@@ -1017,15 +1017,15 @@ function ProdutosStep({
    Step 3 — Entrega
 --------------------------------------------------------- */
 function EntregaStep({
-  deliveryDate,
+  dataEntrega,
   setDeliveryDate,
-  deliveryTime,
+  horarioEntrega,
   setDeliveryTime,
-  deliveryType,
+  tipoEntrega,
   setDeliveryType,
-  notes,
+  observacoes,
   setNotes,
-  daySlots,
+  horariosDoDia,
   capacityAlerts,
   deliveryAddress,
   setDeliveryAddress,
@@ -1042,26 +1042,26 @@ function EntregaStep({
         <input
           type="date"
           lang="pt-BR"
-          value={deliveryDate}
+          value={dataEntrega}
           onChange={(e) => setDeliveryDate(e.target.value)}
           className="w-full rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </Field>
 
       <Field label="Horário" icon={Clock}>
-        {daySlots.length === 0 ? (
+        {horariosDoDia.length === 0 ? (
           <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
             Estabelecimento fechado nesta data. Escolha outra data ou ajuste o
             horário de funcionamento na página inicial.
           </p>
         ) : (
           <select
-            value={deliveryTime}
+            value={horarioEntrega}
             onChange={(e) => setDeliveryTime(e.target.value)}
             className="w-full appearance-none rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Selecionar horário</option>
-            {daySlots.map((h) => (
+            {horariosDoDia.map((h) => (
               <option key={h} value={h}>
                 {h}
               </option>
@@ -1074,14 +1074,14 @@ function EntregaStep({
         <div className="space-y-2">
           {capacityAlerts.map((a) => (
             <div
-              key={a.category}
+              key={a.categoria}
               className="flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700"
             >
               <AlertTriangle size={16} className="mt-0.5 shrink-0" />
               <span>
-                Atenção: com este pedido, {a.qty.toLocaleString("pt-BR")} itens
-                de <strong>{a.category}</strong> ficariam agendados entre{" "}
-                {deliveryTime.slice(0, 2)}:00–{deliveryTime.slice(0, 2)}:59
+                Atenção: com este pedido, {a.quantidade.toLocaleString("pt-BR")} itens
+                de <strong>{a.categoria}</strong> ficariam agendados entre{" "}
+                {horarioEntrega.slice(0, 2)}:00–{horarioEntrega.slice(0, 2)}:59
                 (limite: +{a.threshold}).
               </span>
             </div>
@@ -1097,7 +1097,7 @@ function EntregaStep({
           <button
             onClick={() => setDeliveryType("entrega")}
             className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-colors ${
-              deliveryType === "entrega"
+              tipoEntrega === "entrega"
                 ? "bg-blue-600 text-white"
                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             }`}
@@ -1107,7 +1107,7 @@ function EntregaStep({
           <button
             onClick={() => setDeliveryType("retirada")}
             className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-colors ${
-              deliveryType === "retirada"
+              tipoEntrega === "retirada"
                 ? "bg-blue-600 text-white"
                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             }`}
@@ -1117,7 +1117,7 @@ function EntregaStep({
         </div>
       </div>
 
-      {deliveryType === "entrega" && (
+      {tipoEntrega === "entrega" && (
         <div className="space-y-4 rounded-xl bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
             <MapPin size={15} /> Endereço de Entrega
@@ -1161,7 +1161,7 @@ function EntregaStep({
 
       <Field label="Observações">
         <textarea
-          value={notes}
+          value={observacoes}
           onChange={(e) => setNotes(e.target.value)}
           rows={4}
           className="w-full resize-none rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1175,15 +1175,15 @@ function EntregaStep({
    Step 4 — Pagamento
 --------------------------------------------------------- */
 function PagamentoStep({
-  paymentMethod,
+  formaPagamento,
   setPaymentMethod,
-  paymentStatus,
+  statusPagamento,
   setPaymentStatus,
-  discountPercent,
+  descontoPercentual,
   setDiscountPercent,
   subtotal,
 }) {
-  const discountValue = (subtotal * (Number(discountPercent) || 0)) / 100;
+  const valorDesconto = (subtotal * (Number(descontoPercentual) || 0)) / 100;
   const methods = [
     { id: "pix", label: "PIX" },
     { id: "dinheiro", label: "Dinheiro" },
@@ -1208,7 +1208,7 @@ function PagamentoStep({
               key={m.id}
               onClick={() => setPaymentMethod(m.id)}
               className={`rounded-xl py-3 text-sm font-semibold transition-colors ${
-                paymentMethod === m.id
+                formaPagamento === m.id
                   ? "bg-blue-600 text-white"
                   : "bg-slate-100 text-slate-500 hover:bg-slate-200"
               }`}
@@ -1229,7 +1229,7 @@ function PagamentoStep({
               key={s.id}
               onClick={() => setPaymentStatus(s.id)}
               className={`rounded-xl py-3 text-sm font-semibold transition-colors ${
-                paymentStatus === s.id
+                statusPagamento === s.id
                   ? "bg-blue-600 text-white"
                   : "bg-slate-100 text-slate-500 hover:bg-slate-200"
               }`}
@@ -1247,7 +1247,7 @@ function PagamentoStep({
             min={0}
             max={100}
             step="0.1"
-            value={discountPercent}
+            value={descontoPercentual}
             onChange={(e) => setDiscountPercent(e.target.value)}
             className="w-full rounded-xl bg-slate-100 px-4 py-3 pr-12 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -1255,11 +1255,11 @@ function PagamentoStep({
             %
           </span>
         </div>
-        {Number(discountPercent) > 0 && (
+        {Number(descontoPercentual) > 0 && (
           <p className="mt-1.5 text-xs text-slate-400">
             Equivale a{" "}
             <span className="font-semibold text-slate-600">
-              {formatBRL(discountValue)}
+              {formatBRL(valorDesconto)}
             </span>{" "}
             de desconto
           </p>

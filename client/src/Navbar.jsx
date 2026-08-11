@@ -23,7 +23,7 @@ const navItems = [
   { key: "expedicao", label: "Expedição", icon: Truck, clickable: true },
 ];
 
-export default function Navbar({ active, onNavigate }) {
+export default function Navbar({ ativo, onNavigate }) {
   return (
     <header className="bg-[#0f172a] px-4">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-1">
@@ -36,7 +36,7 @@ export default function Navbar({ active, onNavigate }) {
 
         <nav className="flex items-center gap-1">
           {navItems.map(({ key, label, icon: Icon, clickable }) => {
-            const isActive = key === active;
+            const isActive = key === ativo;
             return (
               <button
                 key={key}
