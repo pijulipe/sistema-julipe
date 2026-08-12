@@ -9,18 +9,20 @@ import {
   Users,
   Boxes,
   Truck,
+  UserCog,
 } from "lucide-react";
 
 const navItems = [
   { key: "home", label: "Início", icon: LayoutGrid, clickable: true },
   { key: "pedidos", label: "Pedidos", icon: ClipboardList, clickable: true },
   { key: "producao", label: "Produção", icon: Factory, clickable: true },
-  { key: "produto", label: "Produtos", icon: Package, clickable: true },
+  { key: "produto", label: "Produto", icon: Package, clickable: true },
   { key: "combos", label: "Combos", icon: Layers, clickable: true },
   { key: "relatorio", label: "Relatório", icon: BarChart2, clickable: true },
   { key: "clientes", label: "Clientes", icon: Users, clickable: true },
   { key: "estoque", label: "Estoque", icon: Boxes, clickable: true },
   { key: "expedicao", label: "Expedição", icon: Truck, clickable: true },
+  { key: "funcionarios", label: "Funcionários", icon: UserCog, clickable: true },
 ];
 
 export default function Navbar({ ativo, onNavigate }) {

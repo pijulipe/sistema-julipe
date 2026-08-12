@@ -5,6 +5,7 @@ import { CombosProvider } from "./CombosContext";
 import { ClientesProvider } from "./ClientesContext";
 import { EstoqueProvider } from "./EstoqueContext";
 import { ConfiguracoesProvider } from "./ConfiguracoesContext";
+import { FuncionariosProvider } from "./FuncionariosContext";
 import Navbar from "./Navbar";
 import DoceriaJulipeDashboard from "./DoceriaJulipeDashboard";
 import PedidosPanel from "./PedidosPanel";
@@ -15,12 +16,13 @@ import ClientesPanel from "./ClientesPanel";
 import EstoquePanel from "./EstoquePanel";
 import ExpedicaoPanel from "./ExpedicaoPanel";
 import RelatoriosPanel from "./RelatoriosPanel";
+import FuncionariosPanel from "./FuncionariosPanel";
 import NovoPedidoModal from "./NovoPedidoModal";
 import LoginPanel from "./LoginPanel";
 import CadastroPanel from "./CadastroPanel";
 
 function AppContent() {
-  // "home" | "pedidos" | "producao" | "produto" | "combos" | "clientes" | "estoque" | "expedicao" | "relatorio" | "novoPedido"
+  // "home" | "pedidos" | "producao" | "produto" | "combos" | "clientes" | "estoque" | "expedicao" | "relatorio" | "funcionarios" | "novoPedido"
   const [view, setView] = useState("home");
   // Guarda de qual tela o "Novo Pedido" foi aberto, para voltar pra lá ao
   // fechar o modal — funciona tanto a partir do Início quanto de Pedidos.
@@ -57,6 +59,8 @@ function AppContent() {
       {view === "expedicao" && <ExpedicaoPanel />}
 
       {view === "relatorio" && <RelatoriosPanel />}
+
+      {view === "funcionarios" && <FuncionariosPanel />}
 
       {view === "novoPedido" && (
         <NovoPedidoModal onClose={() => setView(telaAnterior)} />
@@ -102,7 +106,9 @@ export default function App() {
           <CombosProvider>
             <ClientesProvider>
               <EstoqueProvider>
-                <AppContent />
+                <FuncionariosProvider>
+                  <AppContent />
+                </FuncionariosProvider>
               </EstoqueProvider>
             </ClientesProvider>
           </CombosProvider>
