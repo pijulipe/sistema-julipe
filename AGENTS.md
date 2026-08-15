@@ -404,6 +404,23 @@ Exemplos:
 - O telefone do cliente é obrigatório, mas pode se repetir em cadastros diferentes, conforme o esquema atual.
 - A exclusão de clientes é lógica: o registro deve ser marcado como inativo e receber a data de exclusão, preservando seu histórico.
 
+## Usuários e Permissões
+
+- O modelo de permissões combinará permissões associadas ao cargo com permissões individuais por funcionário.
+- Cada módulo do sistema deverá poder ser concedido ou retirado individualmente para cada funcionário.
+- O sistema deverá registrar o nome da atendente responsável pela criação, edição, cancelamento e alteração de status de cada pedido.
+- O limite de desconto será definido por cargo.
+- O gerente poderá autorizar um desconto acima do limite definido para o cargo do funcionário.
+
+## Pedidos e Auditoria
+
+- As mudanças de status não precisarão seguir obrigatoriamente todas as etapas intermediárias; por exemplo, um pedido poderá passar diretamente de `RECEBIDO` para `PRONTO`.
+- Pedidos entregues ou cancelados não poderão ser reabertos. Permanece pendente confirmar se o gerente será uma exceção a essa regra.
+- Pedidos cancelados deverão permanecer visíveis nos relatórios.
+- Pedidos cancelados deverão ser excluídos de todos os cálculos de faturamento.
+- Ao criar um pedido para entrega, o endereço deverá ser inicialmente preenchido com o endereço cadastrado do cliente e poderá ser alterado para aquela venda.
+- Ainda deverá ser confirmado se a alteração feita durante o pedido também atualizará o cadastro do cliente e como o endereço efetivamente utilizado será preservado no histórico do pedido.
+
 ## Capacidade de Produção
 
 - A capacidade de produção será controlada por intervalos de horário configuráveis.
@@ -432,7 +449,7 @@ O arquivo `schema.sql` representa atualmente as decisões abaixo. Essas decisõe
 
 ## Incompatibilidade de permissões a resolver
 
-O esquema atual oferece apenas perfis fixos de acesso (`ADMINISTRADOR`, `GERENTE` e `ATENDENTE`). Ele ainda não representa permissões individuais por módulo, permissões associadas a cargos configuráveis nem a combinação dos dois modelos. Portanto, a decisão sobre o modelo de permissões continua pendente e poderá exigir alteração posterior do banco de dados, mediante aprovação.
+O modelo combinado de permissões por cargo e por funcionário está confirmado, mas o esquema atual oferece apenas perfis fixos de acesso (`ADMINISTRADOR`, `GERENTE` e `ATENDENTE`). Ele ainda não representa cargos configuráveis, permissões associadas aos cargos, permissões individuais por módulo nem exceções individuais sobre as permissões do cargo. A implementação dessa decisão exigirá proposta de modelagem e aprovação antes da alteração do banco de dados.
 
 ---
 
@@ -442,17 +459,15 @@ As regras abaixo ainda precisam ser confirmadas com a doceria antes da modelagem
 
 ## Usuários e Permissões
 
-- As permissões dos funcionários serão individuais, associadas a cargos ou combinarão os dois modelos?
-- Será necessário registrar quem criou, editou, cancelou ou alterou o status de cada pedido?
-- Existirá limite de desconto por funcionário ou permissão?
+- Como as permissões individuais serão combinadas com as do cargo: somente para conceder acessos adicionais, somente para retirar acessos ou para permitir ambos os tipos de exceção?
+- A autorização do gerente para ultrapassar o limite de desconto valerá somente para uma venda específica ou poderá ser permanente para determinado funcionário?
 
 ## Pedidos
 
-- Quais transições de status serão permitidas?
-- Um pedido entregue, retirado ou cancelado poderá ser reaberto?
-- Pedidos cancelados deverão aparecer nos relatórios?
-- Pedidos cancelados deverão ser excluídos do cálculo de faturamento?
-- O endereço utilizado deverá permanecer registrado como estava no momento da venda, assim como já ocorre com os preços dos itens?
+- Além do salto confirmado de `RECEBIDO` para `PRONTO`, quais outras transições e retornos entre status serão permitidos?
+- A proibição de reabrir pedidos entregues ou cancelados também se aplica ao gerente, ou o gerente será a única exceção?
+- Ao alterar o endereço durante a criação do pedido, a mudança deverá atualizar o cadastro do cliente ou valer somente para aquela venda?
+- O endereço efetivamente utilizado na venda deverá ser preservado no pedido, sem ser afetado por futuras alterações no cadastro do cliente?
 
 ## Pagamentos e Descontos
 
