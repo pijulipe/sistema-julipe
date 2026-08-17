@@ -19,7 +19,7 @@ import RelatoriosPanel from "./RelatoriosPanel";
 import FuncionariosPanel from "./FuncionariosPanel";
 import NovoPedidoModal from "./NovoPedidoModal";
 import LoginPanel from "./LoginPanel";
-import CadastroPanel from "./CadastroPanel";
+import { entrar } from "./services/autenticacaoService.js";
 
 function AppContent() {
   // "home" | "pedidos" | "producao" | "produto" | "combos" | "clientes" | "estoque" | "expedicao" | "relatorio" | "funcionarios" | "novoPedido"
@@ -70,33 +70,16 @@ function AppContent() {
 }
 
 export default function App() {
-  // "login" | "cadastro" | "app"
-  // Enquanto não há integração real com o backend de autenticação
-  // (Supabase Auth — ver schema.sql), o acesso é liberado localmente ao
-  // enviar o formulário de Login ou Cadastro. Quando a integração real
-  // entrar, basta trocar o que acontece dentro de onEntrar/onCriarConta
-  // (chamar supabase.auth.signInWithPassword / signUp) mantendo a mesma
-  // troca de tela abaixo.
+  // A restauração automática da sessão será adicionada na próxima etapa.
   const [telaAuth, setTelaAuth] = useState("login");
 
-  if (telaAuth === "login") {
-    return (
-      <LoginPanel
-        onEntrar={async () => setTelaAuth("app")}
-        onEntrarComGoogle={async () => setTelaAuth("app")}
-        onIrParaCadastro={() => setTelaAuth("cadastro")}
-      />
-    );
+  async function fazerLogin({ email, senha }) {
+    await entrar({ email, senha });
+    setTelaAuth("app");
   }
 
-  if (telaAuth === "cadastro") {
-    return (
-      <CadastroPanel
-        onCriarConta={async () => setTelaAuth("app")}
-        onEntrarComGoogle={async () => setTelaAuth("app")}
-        onIrParaLogin={() => setTelaAuth("login")}
-      />
-    );
+  if (telaAuth === "login") {
+    return <LoginPanel onEntrar={fazerLogin} />;
   }
 
   return (

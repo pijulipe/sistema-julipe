@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Mail, Lock, LogIn } from "lucide-react";
 import { lidarComCampoInvalido, limparValidacaoCampo } from "./formatadores";
-import PainelBoasVindas, { MarcaCompacta, IconeGoogle } from "./PainelBoasVindas";
+import PainelBoasVindas, { MarcaCompacta } from "./PainelBoasVindas";
 
 /**
  * Tela de login.
@@ -9,15 +9,9 @@ import PainelBoasVindas, { MarcaCompacta, IconeGoogle } from "./PainelBoasVindas
  * onEntrar({ email, senha }): chamado ao enviar o formulário. Pode
  * retornar uma Promise — se ela rejeitar, a mensagem de erro é exibida
  * (ex: "Email ou senha incorretos", vinda da integração com o backend).
- * onEntrarComGoogle: chamado ao clicar em "Continuar com Google".
- * onEsqueciSenha: chamado ao clicar em "Esqueceu a senha?".
- * onIrParaCadastro: chamado ao clicar em "Criar conta".
  */
 export default function LoginPanel({
   onEntrar = () => {},
-  onEntrarComGoogle = () => {},
-  onEsqueciSenha = () => {},
-  onIrParaCadastro = () => {},
 }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -56,21 +50,6 @@ export default function LoginPanel({
           </div>
 
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <button
-              type="button"
-              onClick={onEntrarComGoogle}
-              className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <IconeGoogle />
-              Continuar com Google
-            </button>
-
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs font-medium text-slate-400">OU</span>
-              <span className="h-px flex-1 bg-slate-200" />
-            </div>
-
             {erro && (
               <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
                 {erro}
@@ -106,18 +85,12 @@ export default function LoginPanel({
               </div>
 
               <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label htmlFor="login-senha" className="text-sm font-medium text-slate-700">
-                    Senha
-                  </label>
-                  <button
-                    type="button"
-                    onClick={onEsqueciSenha}
-                    className="text-sm font-medium text-blue-600 hover:underline"
-                  >
-                    Esqueceu a senha?
-                  </button>
-                </div>
+                <label
+                  htmlFor="login-senha"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  Senha
+                </label>
                 <div className="relative">
                   <Lock
                     size={16}
@@ -149,16 +122,6 @@ export default function LoginPanel({
             </form>
           </div>
 
-          <p className="mt-6 text-center text-sm text-slate-500">
-            Não tem uma conta?{" "}
-            <button
-              type="button"
-              onClick={onIrParaCadastro}
-              className="font-semibold text-blue-600 hover:underline"
-            >
-              Criar conta
-            </button>
-          </p>
         </div>
       </div>
     </div>
