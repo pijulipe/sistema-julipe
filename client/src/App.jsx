@@ -19,7 +19,8 @@ import RelatoriosPanel from "./RelatoriosPanel";
 import FuncionariosPanel from "./FuncionariosPanel";
 import NovoPedidoModal from "./NovoPedidoModal";
 import LoginPanel from "./LoginPanel";
-import { entrar } from "./services/autenticacaoService.js";
+import CarregamentoAutenticacao from "./CarregamentoAutenticacao";
+import { useAutenticacao } from "./AutenticacaoContext.jsx";
 
 function AppContent() {
   // "home" | "pedidos" | "producao" | "produto" | "combos" | "clientes" | "estoque" | "expedicao" | "relatorio" | "funcionarios" | "novoPedido"
@@ -27,18 +28,42 @@ function AppContent() {
   // Guarda de qual tela o "Novo Pedido" foi aberto, para voltar pra lá ao
   // fechar o modal — funciona tanto a partir do Início quanto de Pedidos.
   const [telaAnterior, setTelaAnterior] = useState("home");
+  const [saindo, setSaindo] = useState(false);
+  const [erroLogout, setErroLogout] = useState("");
 
   const abrirNovoPedido = () => {
     setTelaAnterior(view);
     setView("novoPedido");
   };
 
+  const { fazerLogout } = useAutenticacao();
+
+  async function lidarComLogout() {
+    setErroLogout("");
+    setSaindo(true);
+    try {
+      await fazerLogout();
+    } catch (erro) {
+      setErroLogout(erro?.message || "Não foi possível sair do sistema.");
+    } finally {
+      setSaindo(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       <Navbar
         ativo={view === "novoPedido" ? telaAnterior : view}
         onNavigate={setView}
+        onSair={lidarComLogout}
+        saindo={saindo}
       />
+
+      {erroLogout && (
+        <div className="mx-auto mt-4 max-w-7xl rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+          {erroLogout}
+        </div>
+      )}
 
       {view === "home" && (
         <DoceriaJulipeDashboard onNovoPedido={abrirNovoPedido} />
@@ -70,15 +95,13 @@ function AppContent() {
 }
 
 export default function App() {
-  // A restauração automática da sessão será adicionada na próxima etapa.
-  const [telaAuth, setTelaAuth] = useState("login");
+  const { autenticado, carregandoAutenticacao, fazerLogin } = useAutenticacao();
 
-  async function fazerLogin({ email, senha }) {
-    await entrar({ email, senha });
-    setTelaAuth("app");
+  if (carregandoAutenticacao) {
+    return <CarregamentoAutenticacao />;
   }
 
-  if (telaAuth === "login") {
+  if (!autenticado) {
     return <LoginPanel onEntrar={fazerLogin} />;
   }
 

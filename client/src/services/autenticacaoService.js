@@ -20,4 +20,38 @@ async function entrar({ email, senha }) {
   return { sessao, usuario };
 }
 
-export { entrar };
+async function obterSessao() {
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error) {
+    throw new Error("Erro ao obter sessão");
+  }
+
+  const sessao = data.session;
+  const usuario = data.session?.user;
+  if (!sessao) {
+    return { sessao: null, usuario: null };
+  }
+
+  return { sessao, usuario };
+}
+
+function acompanharAutenticacao(callback) {
+  const { data } = supabase.auth.onAuthStateChange((_evento, sessao) => {
+    const usuario = sessao?.user ?? null;
+    
+    callback(sessao, usuario);
+  });
+
+  return data.subscription;
+}
+
+async function sair() {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    throw new Error("Não foi possível sair do sistema");
+  }
+}
+
+export { entrar, obterSessao, acompanharAutenticacao, sair };

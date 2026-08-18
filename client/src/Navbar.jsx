@@ -10,6 +10,7 @@ import {
   Boxes,
   Truck,
   UserCog,
+  LogOut,
 } from "lucide-react";
 
 const navItems = [
@@ -22,10 +23,20 @@ const navItems = [
   { key: "clientes", label: "Clientes", icon: Users, clickable: true },
   { key: "estoque", label: "Estoque", icon: Boxes, clickable: true },
   { key: "expedicao", label: "Expedição", icon: Truck, clickable: true },
-  { key: "funcionarios", label: "Funcionários", icon: UserCog, clickable: true },
+  {
+    key: "funcionarios",
+    label: "Funcionários",
+    icon: UserCog,
+    clickable: true,
+  },
 ];
 
-export default function Navbar({ ativo, onNavigate }) {
+export default function Navbar({
+  ativo,
+  onNavigate,
+  onSair = () => {},
+  saindo = false,
+}) {
   return (
     <header className="bg-[#0f172a] px-4">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-1">
@@ -55,6 +66,16 @@ export default function Navbar({ ativo, onNavigate }) {
             );
           })}
         </nav>
+
+        <button
+          type="button"
+          onClick={onSair}
+          className="ml-auto flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={saindo}
+        >
+          <LogOut size={16} strokeWidth={2} />
+          {saindo ? "Saindo..." : "Sair"}
+        </button>
       </div>
     </header>
   );
