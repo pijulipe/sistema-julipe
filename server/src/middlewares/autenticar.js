@@ -17,7 +17,7 @@ export function autenticar(requisicao, resposta, proximo) {
     }
 
     requisicao.usuario = {
-      idUsuario: conteudo.sub,
+      id_usuario: conteudo.sub,
       perfilAcesso: conteudo.perfilAcesso,
       permissoes: Array.isArray(conteudo.permissoes) ? conteudo.permissoes : [],
     };

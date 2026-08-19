@@ -5,6 +5,7 @@ const esquemaAmbiente = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória."),
   JWT_SECRET: z.string().min(32, "JWT_SECRET deve possuir pelo menos 32 caracteres."),
+  SUPABASE_JWT_SECRET: z.string().min(32, "SUPABASE_JWT_SECRET é obrigatório e deve possuir pelo menos 32 caracteres."),
   PORTA: z.coerce.number().int().positive().default(3000),
   ORIGENS_PERMITIDAS: z.string().default("http://localhost:5173"),
 });
