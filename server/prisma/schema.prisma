@@ -167,7 +167,7 @@ model pedidos {
   clientes                 Cliente?              @relation(fields: [id_cliente], references: [idCliente], onUpdate: NoAction, map: "fk_pedidos_clientes")
   entregadores             entregadores?         @relation(fields: [id_entregador], references: [id_entregador], onUpdate: NoAction, map: "fk_pedidos_entregadores")
   limites_horario          limites_horario?      @relation(fields: [id_limite_horario], references: [id_limite_horario], onUpdate: NoAction, map: "fk_pedidos_limites_horario")
-  usuarios                 usuarios?             @relation(fields: [id_usuario_atendente], references: [id_usuario], onUpdate: NoAction, map: "fk_pedidos_usuarios")
+  usuario                  Usuario?              @relation(fields: [id_usuario_atendente], references: [idUsuario], onUpdate: NoAction, map: "fk_pedidos_usuarios")
   propriedades_pedido      propriedades_pedido[]
 
   @@index([id_usuario_atendente], map: "idx_pedidos_atendente")
@@ -177,15 +177,16 @@ model pedidos {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model permissoes_funcionario {
-  id_permissao Int       @id(map: "pk_permissoes_funcionario") @default(autoincrement())
-  id_usuario   String    @db.Uuid
-  modulo       String    @db.VarChar(50)
-  item_ativo   Boolean   @default(true)
-  deletado_em  DateTime? @db.Timestamptz(6)
-  usuarios     usuarios  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction, map: "fk_permissoes_usuarios")
+model PermissaoFuncionario {
+  idPermissao Int       @id(map: "pk_permissoes_funcionario") @default(autoincrement()) @map("id_permissao")
+  idUsuario   String    @map("id_usuario") @db.Uuid
+  modulo      String    @db.VarChar(50)
+  itemAtivo   Boolean   @default(true) @map("item_ativo")
+  deletadoEm  DateTime? @map("deletado_em") @db.Timestamptz(6)
+  usuario     Usuario   @relation(fields: [idUsuario], references: [idUsuario], onDelete: Cascade, onUpdate: NoAction, map: "fk_permissoes_usuarios")
 
-  @@index([id_usuario], map: "idx_permissoes_usuario")
+  @@index([idUsuario], map: "idx_permissoes_usuario")
+  @@map("permissoes_funcionario")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -240,17 +241,19 @@ model propriedades_pedido {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model usuarios {
-  id_usuario               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nome                     String                   @db.VarChar(255)
-  email                    String                   @unique @db.VarChar(255)
-  perfil_acesso            perfil_acesso_enum       @default(ATENDENTE)
-  ativo                    Boolean                  @default(true)
-  item_ativo               Boolean                  @default(true)
-  deletado_em              DateTime?                @db.Timestamptz(6)
-  id_autenticacao_supabase String?                  @unique @db.Uuid
-  pedidos                  pedidos[]
-  permissoes_funcionario   permissoes_funcionario[]
+model Usuario {
+  idUsuario              String                 @id @default(dbgenerated("gen_random_uuid()")) @map("id_usuario") @db.Uuid
+  nome                   String                 @db.VarChar(255)
+  email                  String                 @unique @db.VarChar(255)
+  perfilAcesso           perfil_acesso_enum     @default(ATENDENTE) @map("perfil_acesso")
+  ativo                  Boolean                @default(true)
+  itemAtivo              Boolean                @default(true) @map("item_ativo")
+  deletadoEm             DateTime?              @map("deletado_em") @db.Timestamptz(6)
+  idAutenticacaoSupabase String                 @unique @map("id_autenticacao_supabase") @db.Uuid
+  pedidos                pedidos[]
+  permissoesFuncionario  PermissaoFuncionario[]
+
+  @@map("usuarios")
 }
 
 enum peixe_status_cor_enum {
