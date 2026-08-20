@@ -19,7 +19,7 @@ export class AutenticacaoService {
         if (!usuario) throw new ErroAplicacao("Não há funcionário vinculado a essa conta.", 401);
 
         const token = jwt.sign(
-            { sub: usuario.id_usuario, perfilAcesso: usuario.perfilAcesso, permissoes: usuario.permissoes },
+            { sub: usuario.id_usuario, perfilAcesso: usuario.perfil_acesso, permissoes: usuario.permissoes },
             ambiente.JWT_SECRET,
             { algorithm: "HS256", expiresIn: "8h" }
         );

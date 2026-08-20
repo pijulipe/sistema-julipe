@@ -8,7 +8,7 @@ datasource db {
 }
 
 model Cliente {
-  idCliente       BigInt    @id @default(autoincrement()) @map("id_cliente")
+  idCliente       BigInt    @id(map: "pk_clientes") @default(autoincrement()) @map("id_cliente")
   nome            String    @db.VarChar(255)
   telefone        String    @db.VarChar(20)
   endereco        String?   @db.VarChar(255)
@@ -20,6 +20,271 @@ model Cliente {
   dataCadastro    DateTime  @default(now()) @map("data_cadastro") @db.Timestamptz(6)
   itemAtivo       Boolean   @default(true) @map("item_ativo")
   deletadoEm      DateTime? @map("deletado_em") @db.Timestamptz(6)
+  pedidos         pedidos[]
 
   @@map("clientes")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model acessorios {
+  id_acessorio      Int                 @id(map: "pk_acessorios") @default(autoincrement())
+  nome              String              @db.VarChar(255)
+  preco_padrao      Decimal             @default(0.00) @db.Decimal(10, 2)
+  estoque_atual     Int                 @default(0)
+  ativo             Boolean             @default(true)
+  item_ativo        Boolean             @default(true)
+  deletado_em       DateTime?           @db.Timestamptz(6)
+  acessorios_pedido acessorios_pedido[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model acessorios_pedido {
+  id_acessorio_pedido Int        @id(map: "pk_acessorios_pedido") @default(autoincrement())
+  id_pedido           BigInt
+  id_acessorio        Int
+  quantidade          Int        @default(1)
+  preco_unitario      Decimal    @db.Decimal(10, 2)
+  item_ativo          Boolean    @default(true)
+  deletado_em         DateTime?  @db.Timestamptz(6)
+  acessorios          acessorios @relation(fields: [id_acessorio], references: [id_acessorio], onUpdate: NoAction, map: "fk_acessorios_pedido_acessorios")
+  pedidos             pedidos    @relation(fields: [id_pedido], references: [id_pedido], onDelete: Cascade, onUpdate: NoAction, map: "fk_acessorios_pedido_pedidos")
+
+  @@index([id_acessorio], map: "idx_acessorios_pedido_acessorio")
+  @@index([id_pedido], map: "idx_acessorios_pedido_pedido")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model categorias {
+  id_categoria               Int        @id(map: "pk_categorias") @default(autoincrement())
+  nome_categoria             String     @db.VarChar(150)
+  descricao                  String?
+  unidades_por_pacote_padrao Int        @default(1)
+  permite_imagem             Boolean    @default(false)
+  ativo                      Boolean    @default(true)
+  item_ativo                 Boolean    @default(true)
+  deletado_em                DateTime?  @db.Timestamptz(6)
+  produtos                   produtos[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model combos {
+  id_combo            Int                   @id(map: "pk_combos") @default(autoincrement())
+  nome                String                @db.VarChar(255)
+  descricao           String?
+  preco               Decimal               @db.Decimal(10, 2)
+  ativo               Boolean               @default(true)
+  item_ativo          Boolean               @default(true)
+  deletado_em         DateTime?             @db.Timestamptz(6)
+  itens_combo         itens_combo[]
+  propriedades_pedido propriedades_pedido[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model configuracoes_sistema {
+  id_configuracao Int      @id(map: "pk_configuracoes_sistema") @default(autoincrement())
+  chave           String   @unique @db.VarChar(100)
+  valor_json      Json
+  descricao       String?
+  atualizado_em   DateTime @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model entregadores {
+  id_entregador Int       @id(map: "pk_entregadores") @default(autoincrement())
+  nome          String    @db.VarChar(255)
+  telefone      String?   @db.VarChar(20)
+  veiculo       String?   @db.VarChar(100)
+  placa         String?   @db.VarChar(15)
+  ativo         Boolean   @default(true)
+  item_ativo    Boolean   @default(true)
+  deletado_em   DateTime? @db.Timestamptz(6)
+  pedidos       pedidos[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model itens_combo {
+  id_item_combo Int      @id(map: "pk_itens_combo") @default(autoincrement())
+  id_combo      Int
+  id_produto    Int
+  quantidade    Decimal  @default(1.000) @db.Decimal(10, 3)
+  combos        combos   @relation(fields: [id_combo], references: [id_combo], onDelete: Cascade, onUpdate: NoAction, map: "fk_itens_combo_combos")
+  produtos      produtos @relation(fields: [id_produto], references: [id_produto], onUpdate: NoAction, map: "fk_itens_combo_produtos")
+
+  @@index([id_combo], map: "idx_itens_combo_combo")
+  @@index([id_produto], map: "idx_itens_combo_produto")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model limites_horario {
+  id_limite_horario Int       @id(map: "pk_limites_horario") @default(autoincrement())
+  data              DateTime  @db.Date
+  horario_inicio    DateTime  @db.Timestamptz(6)
+  horario_fim       DateTime  @db.Timestamptz(6)
+  limite_pedidos    Int       @default(0)
+  pedidos_agendados Int       @default(0)
+  bloqueado         Boolean   @default(false)
+  item_ativo        Boolean   @default(true)
+  deletado_em       DateTime? @db.Timestamptz(6)
+  pedidos           pedidos[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model pedidos {
+  id_pedido                BigInt                @id(map: "pk_pedidos") @default(autoincrement())
+  codigo_comanda           String?               @db.VarChar(50)
+  id_cliente               BigInt?
+  id_usuario_atendente     String?               @db.Uuid
+  id_limite_horario        Int?
+  id_entregador            Int?
+  tipo_entrega             tipo_entrega_enum
+  data_pedido              DateTime              @default(now()) @db.Timestamptz(6)
+  data_entrega_agendada    DateTime?             @db.Date
+  horario_entrega_agendada DateTime?             @db.Time(6)
+  status_pedido            status_pedido_enum    @default(RECEBIDO)
+  status_pagamento         status_pagamento_enum @default(PENDENTE)
+  valor_subtotal           Decimal               @default(0.00) @db.Decimal(10, 2)
+  taxa_entrega             Decimal               @default(0.00) @db.Decimal(10, 2)
+  desconto_percentual      Decimal               @default(0.00) @db.Decimal(5, 2)
+  valor_desconto           Decimal               @default(0.00) @db.Decimal(10, 2)
+  valor_total              Decimal               @default(0.00) @db.Decimal(10, 2)
+  forma_pagamento          String?               @db.VarChar(100)
+  peixe_status_cor         peixe_status_cor_enum @default(NENHUM)
+  estoque_baixado          Boolean               @default(false)
+  foto_referencia_url      String?
+  observacoes_pedido       String?
+  detalhes_personalizacao  String?
+  motivo_cancelamento      String?
+  cancelado_em             DateTime?             @db.Timestamptz(6)
+  item_ativo               Boolean               @default(true)
+  deletado_em              DateTime?             @db.Timestamptz(6)
+  acessorios_pedido        acessorios_pedido[]
+  clientes                 Cliente?              @relation(fields: [id_cliente], references: [idCliente], onUpdate: NoAction, map: "fk_pedidos_clientes")
+  entregadores             entregadores?         @relation(fields: [id_entregador], references: [id_entregador], onUpdate: NoAction, map: "fk_pedidos_entregadores")
+  limites_horario          limites_horario?      @relation(fields: [id_limite_horario], references: [id_limite_horario], onUpdate: NoAction, map: "fk_pedidos_limites_horario")
+  usuarios                 usuarios?             @relation(fields: [id_usuario_atendente], references: [id_usuario], onUpdate: NoAction, map: "fk_pedidos_usuarios")
+  propriedades_pedido      propriedades_pedido[]
+
+  @@index([id_usuario_atendente], map: "idx_pedidos_atendente")
+  @@index([id_cliente], map: "idx_pedidos_cliente")
+  @@index([id_entregador], map: "idx_pedidos_entregador")
+  @@index([id_limite_horario], map: "idx_pedidos_limite_horario")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model permissoes_funcionario {
+  id_permissao Int       @id(map: "pk_permissoes_funcionario") @default(autoincrement())
+  id_usuario   String    @db.Uuid
+  modulo       String    @db.VarChar(50)
+  item_ativo   Boolean   @default(true)
+  deletado_em  DateTime? @db.Timestamptz(6)
+  usuarios     usuarios  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction, map: "fk_permissoes_usuarios")
+
+  @@index([id_usuario], map: "idx_permissoes_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model produtos {
+  id_produto            Int                   @id(map: "pk_produtos") @default(autoincrement())
+  id_categoria          Int
+  nome                  String                @db.VarChar(255)
+  descricao             String?
+  preco_unitario        Decimal               @db.Decimal(10, 2)
+  unidade_medida        String                @default("Unidade") @db.VarChar(20)
+  multiplo_minimo       Int                   @default(1)
+  tempo_preparo_minutos Int                   @default(0)
+  url_imagem            String?
+  permite_imagem        Boolean               @default(false)
+  estoque_atual         Decimal               @default(0.00) @db.Decimal(10, 2)
+  estoque_critico       Decimal               @default(5.00) @db.Decimal(10, 2)
+  ativo                 Boolean               @default(true)
+  item_ativo            Boolean               @default(true)
+  deletado_em           DateTime?             @db.Timestamptz(6)
+  itens_combo           itens_combo[]
+  categorias            categorias            @relation(fields: [id_categoria], references: [id_categoria], onUpdate: NoAction, map: "fk_produtos_categorias")
+  propriedades_pedido   propriedades_pedido[]
+
+  @@index([id_categoria], map: "idx_produtos_categoria")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model propriedades_pedido {
+  id_item_pedido        BigInt    @id(map: "pk_propriedades_pedido") @default(autoincrement())
+  id_pedido             BigInt
+  id_produto            Int?
+  id_combo              Int?
+  quantidade            Decimal   @db.Decimal(10, 3)
+  preco_unitario        Decimal   @db.Decimal(10, 2)
+  subtotal              Decimal   @db.Decimal(10, 2)
+  massa_escolhida       String?   @db.VarChar(100)
+  recheio_escolhido     String?   @db.VarChar(100)
+  cobertura_escolhida   String?   @db.VarChar(100)
+  escrita_personalizada String?   @db.VarChar(255)
+  observacoes_item      String?
+  item_ativo            Boolean   @default(true)
+  deletado_em           DateTime? @db.Timestamptz(6)
+  combos                combos?   @relation(fields: [id_combo], references: [id_combo], onDelete: Restrict, onUpdate: NoAction, map: "fk_propriedades_pedido_combos")
+  pedidos               pedidos   @relation(fields: [id_pedido], references: [id_pedido], onDelete: Cascade, onUpdate: NoAction, map: "fk_propriedades_pedido_pedidos")
+  produtos              produtos? @relation(fields: [id_produto], references: [id_produto], onDelete: Restrict, onUpdate: NoAction, map: "fk_propriedades_pedido_produtos")
+
+  @@index([id_combo], map: "idx_propriedades_pedido_combo")
+  @@index([id_pedido], map: "idx_propriedades_pedido_pedido")
+  @@index([id_produto], map: "idx_propriedades_pedido_produto")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model usuarios {
+  id_usuario               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                     String                   @db.VarChar(255)
+  email                    String                   @unique @db.VarChar(255)
+  perfil_acesso            perfil_acesso_enum       @default(ATENDENTE)
+  ativo                    Boolean                  @default(true)
+  item_ativo               Boolean                  @default(true)
+  deletado_em              DateTime?                @db.Timestamptz(6)
+  id_autenticacao_supabase String?                  @unique @db.Uuid
+  pedidos                  pedidos[]
+  permissoes_funcionario   permissoes_funcionario[]
+}
+
+enum peixe_status_cor_enum {
+  NEMO
+  DORI
+  NENHUM
+}
+
+enum perfil_acesso_enum {
+  ADMINISTRADOR
+  GERENTE
+  ATENDENTE
+}
+
+enum status_pagamento_enum {
+  PENDENTE
+  PAGO
+  PARCIAL
+  REJEITADO
+  ESTORNADO
+  CANCELADO
+}
+
+enum status_pedido_enum {
+  RECEBIDO
+  EM_PRODUCAO
+  PRONTO
+  EM_ROTA
+  ENTREGUE
+  CANCELADO
+}
+
+enum tipo_entrega_enum {
+  ENTREGA
+  RETIRADA
+  CONSUMO_LOCAL
 }
