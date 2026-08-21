@@ -1,14 +1,13 @@
 import React, { useState } from "react";
-import { useClientes } from "./ClientesContext";
 import { formatarTelefoneBR } from "./formatadores";
 
 const emptyForm = {
   nome: "",
   telefone: "",
   endereco: "",
-  number: "",
+  numeroEndereco: "",
   bairro: "",
-  reference: "",
+  pontoReferencia: "",
   observacoes: "",
 };
 
@@ -17,20 +16,19 @@ const emptyForm = {
  * cliente: obrigatório para "edit"
  */
 export default function ClienteModal({ mode, cliente, onClose, onSave }) {
-  const { buscarClientePorTelefone } = useClientes();
-
+  const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState(() =>
     mode === "edit" && cliente
       ? {
           nome: cliente.nome || "",
           telefone: cliente.telefone || "",
           endereco: cliente.endereco || "",
-          number: cliente.number || "",
+          numeroEndereco: cliente.numeroEndereco || "",
           bairro: cliente.bairro || "",
-          reference: cliente.reference || "",
+          pontoReferencia: cliente.pontoReferencia || "",
           observacoes: cliente.observacoes || "",
         }
-      : emptyForm
+      : emptyForm,
   );
   const [error, setError] = useState("");
 
@@ -41,34 +39,37 @@ export default function ClienteModal({ mode, cliente, onClose, onSave }) {
 
   const handleAlterarTelefone = (e) => {
     setError("");
-    setForm((prev) => ({ ...prev, telefone: formatarTelefoneBR(e.target.value) }));
+    setForm((prev) => ({
+      ...prev,
+      telefone: formatarTelefoneBR(e.target.value),
+    }));
   };
 
   const canSubmit = form.nome.trim() && form.telefone.trim();
 
-  const handleSubmit = () => {
-    if (!canSubmit) return;
-
-    const duplicate = buscarClientePorTelefone(
-      form.telefone,
-      mode === "edit" ? cliente?.id : undefined
-    );
-    if (duplicate) {
-      setError(
-        `Já existe um cliente cadastrado com esse telefone: ${duplicate.nome}`
-      );
+  const handleSubmit = async () => {
+    if (!canSubmit || salvando) {
       return;
     }
 
-    onSave({
-      nome: form.nome.trim(),
-      telefone: form.telefone.trim(),
-      endereco: form.endereco.trim(),
-      number: form.number.trim(),
-      bairro: form.bairro.trim(),
-      reference: form.reference.trim(),
-      observacoes: form.observacoes.trim(),
-    });
+    setError("");
+    setSalvando(true);
+
+    try {
+      await onSave({
+        nome: form.nome.trim(),
+        telefone: form.telefone.trim(),
+        endereco: form.endereco.trim(),
+        numeroEndereco: form.numeroEndereco.trim(),
+        bairro: form.bairro.trim(),
+        pontoReferencia: form.pontoReferencia.trim(),
+        observacoes: form.observacoes.trim(),
+      });
+    } catch (erro) {
+      setError(erro?.message || "Não foi possível salvar o cliente.");
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
@@ -124,8 +125,8 @@ export default function ClienteModal({ mode, cliente, onClose, onSave }) {
             </Field>
             <Field label="Número">
               <input
-                value={form.number}
-                onChange={handleChange("number")}
+                value={form.numeroEndereco}
+                onChange={handleChange("numeroEndereco")}
                 placeholder="Nº"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -142,8 +143,8 @@ export default function ClienteModal({ mode, cliente, onClose, onSave }) {
             </Field>
             <Field label="Ponto de Referência">
               <input
-                value={form.reference}
-                onChange={handleChange("reference")}
+                value={form.pontoReferencia}
+                onChange={handleChange("pontoReferencia")}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </Field>
@@ -162,16 +163,17 @@ export default function ClienteModal({ mode, cliente, onClose, onSave }) {
         <div className="flex gap-3 px-6 pb-6">
           <button
             onClick={onClose}
+            disabled={salvando}
             className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
           >
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!canSubmit}
+            disabled={!canSubmit || salvando}
             className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {mode === "edit" ? "Salvar" : "Criar"}
+            {salvando ? "Salvando..." : mode === "edit" ? "Salvar" : "Criar"}
           </button>
         </div>
       </div>

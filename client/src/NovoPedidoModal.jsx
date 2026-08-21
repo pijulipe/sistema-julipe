@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ShoppingCart,
   X,
@@ -38,6 +38,9 @@ import {
    Helpers/constantes
 --------------------------------------------------------- */
 const STEPS = ["Cliente", "Produtos", "Entrega", "Pagamento"];
+// Decisão provisória: alterar para false caso a doceria confirme que o
+// endereço informado no pedido não deve atualizar o cadastro do cliente.
+const ATUALIZAR_CADASTRO_CLIENTE_COM_ENDERECO_PEDIDO = true;
 
 /* ---------------------------------------------------------
    Helpers
@@ -62,7 +65,13 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
   const { pedidos, adicionarPedido } = usePedidos();
   const { produtos } = useProdutos();
   const { combos } = useCombos();
-  const { clientes, adicionarCliente, atualizarCliente, buscarClientePorTelefone } = useClientes();
+  const {
+    clientes,
+    adicionarCliente,
+    atualizarCliente,
+    carregarClientes,
+    carregandoClientes,
+  } = useClientes();
   const { obterHorariosPorData, limitesAlerta, baixaAutomaticaEstoque } = useConfiguracoes();
   const { obterEstoque, removerQuantidade } = useEstoque();
   const [step, setStep] = useState(0); // 0 Cliente, 1 Produtos, 2 Entrega, 3 Pagamento
@@ -74,6 +83,8 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
   const [novoCliente, setNovoCliente] = useState({ nome: "", telefone: "" });
   const [erroNovoCliente, setNovoClienteError] = useState("");
+  const [criandoCliente, setCriandoCliente] = useState(false);
+  const carregarClientesRef = useRef(carregarClientes);
 
   // ---- Produtos ----
   const [abaProduto, setAbaProduto] = useState("produtos"); // produtos | combos
@@ -96,6 +107,24 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
   const [formaPagamento, setPaymentMethod] = useState("pix"); // pix | dinheiro | cartao | outro
   const [statusPagamento, setPaymentStatus] = useState("pendente"); // pendente | parcial | pago
   const [descontoPercentual, setDiscountPercent] = useState(0);
+  const [finalizandoPedido, setFinalizandoPedido] = useState(false);
+  const [erroFinalizacao, setErroFinalizacao] = useState("");
+
+  useEffect(() => {
+    carregarClientesRef.current = carregarClientes;
+  }, [carregarClientes]);
+
+  useEffect(() => {
+    const temporizador = setTimeout(() => {
+      carregarClientesRef.current({
+        busca: buscaCliente,
+        pagina: 1,
+        limite: 20,
+      });
+    }, 300);
+
+    return () => clearTimeout(temporizador);
+  }, [buscaCliente]);
 
   // Ao escolher (ou trocar) o cliente, pré-preenche o endereço de entrega
   // com o que já está no cadastro dele — mas continua editável, já que o
@@ -103,20 +132,14 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
   useEffect(() => {
     if (!clienteSelecionado) return;
     setDeliveryAddress(clienteSelecionado.endereco || "");
-    setDeliveryNumber(clienteSelecionado.number || "");
+    setDeliveryNumber(clienteSelecionado.numeroEndereco || "");
     setDeliveryNeighborhood(clienteSelecionado.bairro || "");
-    setDeliveryReference(clienteSelecionado.reference || "");
+    setDeliveryReference(clienteSelecionado.pontoReferencia || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clienteSelecionado?.id]);
+  }, [clienteSelecionado?.idCliente]);
 
   /* ---------------- derived values ---------------- */
-  const clientesFiltrados = useMemo(() => {
-    const q = buscaCliente.trim().toLowerCase();
-    if (!q) return clientes;
-    return clientes.filter(
-      (c) => c.nome.toLowerCase().includes(q) || c.telefone.includes(q)
-    );
-  }, [clientes, buscaCliente]);
+  const clientesFiltrados = clientes;
 
   // Quantidade de cada produto já comprometida em pedidos existentes, mas
   // que AINDA NÃO foi fisicamente descontada do estoque (inclui itens
@@ -309,23 +332,32 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
     );
   };
 
-  const criarClienteEContinuar = () => {
-    if (!novoCliente.nome.trim() || !novoCliente.telefone.trim()) return;
-
-    const duplicate = buscarClientePorTelefone(novoCliente.telefone);
-    if (duplicate) {
-      setNovoClienteError(
-        `Já existe um cliente cadastrado com esse telefone: ${duplicate.nome}. Use a aba "Cliente Existente" para selecioná-lo.`
-      );
+  const criarClienteEContinuar = async () => {
+    if (
+      criandoCliente ||
+      !novoCliente.nome.trim() ||
+      !novoCliente.telefone.trim()
+    ) {
       return;
     }
 
-    const created = adicionarCliente({
-      nome: novoCliente.nome.trim(),
-      telefone: novoCliente.telefone.trim(),
-    });
-    setClienteSelecionado(created);
-    setStep(1);
+    setNovoClienteError("");
+    setCriandoCliente(true);
+
+    try {
+      const clienteCriado = await adicionarCliente({
+        nome: novoCliente.nome.trim(),
+        telefone: novoCliente.telefone.trim(),
+      });
+      setClienteSelecionado(clienteCriado);
+      setStep(1);
+    } catch (erro) {
+      setNovoClienteError(
+        erro?.message || "Não foi possível cadastrar o cliente.",
+      );
+    } finally {
+      setCriandoCliente(false);
+    }
   };
 
   /* ---------------- step validation ---------------- */
@@ -365,17 +397,12 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
   };
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
-  const finalizePedido = () => {
-    if (cartItems.length === 0) return;
+  const finalizePedido = async () => {
+    if (cartItems.length === 0 || finalizandoPedido) return;
 
-    // Baixa automática de estoque: desconta a quantidade de cada produto
-    // do pedido (decompondo combos nos produtos que os compõem). Permite
-    // ficar negativo — o déficit é o que alimenta o alerta na página inicial.
-    if (baixaAutomaticaEstoque) {
-      decomporItensPorProduto(cartItems, combos).forEach(({ idProduto, quantidade }) => {
-        removerQuantidade(idProduto, quantidade, true);
-      });
-    }
+    setErroFinalizacao("");
+    setFinalizandoPedido(true);
+    let clienteDoPedido = clienteSelecionado;
 
     const endereco =
       tipoEntrega === "retirada"
@@ -386,45 +413,58 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
           }`
         : "Endereço não informado";
 
-    // Se for entrega e o endereço foi preenchido, salva (ou atualiza) o
-    // endereço no cadastro do cliente — assim, da próxima vez que um
-    // pedido for criado para ele, o endereço já vem pré-preenchido
-    // automaticamente (ver o useEffect que observa clienteSelecionado acima),
-    // sem precisar digitar tudo de novo.
-    if (tipoEntrega === "entrega" && clienteSelecionado && deliveryAddress.trim()) {
-      atualizarCliente(clienteSelecionado.id, {
-        endereco: deliveryAddress.trim(),
-        number: deliveryNumber.trim(),
-        bairro: deliveryNeighborhood.trim(),
-        reference: deliveryReference.trim(),
+    try {
+      if (
+        ATUALIZAR_CADASTRO_CLIENTE_COM_ENDERECO_PEDIDO &&
+        tipoEntrega === "entrega" &&
+        clienteSelecionado &&
+        deliveryAddress.trim()
+      ) {
+        clienteDoPedido = await atualizarCliente(clienteSelecionado.idCliente, {
+          endereco: deliveryAddress.trim(),
+          numeroEndereco: deliveryNumber.trim(),
+          bairro: deliveryNeighborhood.trim(),
+          pontoReferencia: deliveryReference.trim(),
+        });
+      }
+
+      // A baixa ocorre somente depois que as operações assíncronas que
+      // podem impedir a finalização tiverem sido concluídas.
+      if (baixaAutomaticaEstoque) {
+        decomporItensPorProduto(cartItems, combos).forEach(
+          ({ idProduto, quantidade }) => {
+            removerQuantidade(idProduto, quantidade, true);
+          },
+        );
+      }
+
+      adicionarPedido({
+        cliente: clienteDoPedido,
+        itens: cartItems,
+        dataEntrega,
+        horarioEntrega,
+        tipoEntrega,
+        observacoes,
+        formaPagamento,
+        statusPagamento,
+        descontoPercentual: Number(descontoPercentual) || 0,
+        valorDesconto,
+        subtotal,
+        total,
+        endereco,
+        bairro: tipoEntrega === "entrega" ? deliveryNeighborhood.trim() : "",
+        reference: tipoEntrega === "entrega" ? deliveryReference.trim() : "",
+        estoqueBaixado: baixaAutomaticaEstoque,
       });
+
+      onClose();
+    } catch (erro) {
+      setErroFinalizacao(
+        erro?.message || "Não foi possível finalizar o pedido.",
+      );
+    } finally {
+      setFinalizandoPedido(false);
     }
-
-    adicionarPedido({
-      cliente: clienteSelecionado,
-      itens: cartItems,
-      dataEntrega,
-      horarioEntrega,
-      tipoEntrega,
-      observacoes,
-      formaPagamento,
-      statusPagamento,
-      descontoPercentual: Number(descontoPercentual) || 0,
-      valorDesconto,
-      subtotal,
-      total,
-      endereco,
-      // Guardados no próprio pedido (podem diferir do cadastro do
-      // cliente para esta entrega específica). Vazios em pedidos de
-      // retirada, já que não se aplicam.
-      bairro: tipoEntrega === "entrega" ? deliveryNeighborhood.trim() : "",
-      reference: tipoEntrega === "entrega" ? deliveryReference.trim() : "",
-      // Grava o que aconteceu de fato com o estoque NESTE pedido,
-      // independente do que o interruptor vier a ser depois.
-      estoqueBaixado: baixaAutomaticaEstoque,
-    });
-
-    onClose();
   };
 
   /* ---------------------------------------------------------
@@ -496,6 +536,8 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
                 criarClienteEContinuar={criarClienteEContinuar}
                 erroNovoCliente={erroNovoCliente}
                 setNovoClienteError={setNovoClienteError}
+                criandoCliente={criandoCliente}
+                carregandoClientes={carregandoClientes}
               />
             )}
 
@@ -712,19 +754,26 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
               ) : (
                 <button
                   onClick={finalizePedido}
-                  disabled={!clienteSelecionado || cartItems.length === 0}
+                  disabled={
+                    !clienteSelecionado ||
+                    cartItems.length === 0 ||
+                    finalizandoPedido
+                  }
                   title={
                     temEstoqueInsuficiente
                       ? "Atenção: estoque insuficiente para um ou mais itens deste pedido"
                       : undefined
                   }
                   className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white transition-colors ${
-                    clienteSelecionado && cartItems.length > 0
+                    clienteSelecionado &&
+                    cartItems.length > 0 &&
+                    !finalizandoPedido
                       ? "bg-emerald-600 hover:bg-emerald-700"
                       : "cursor-not-allowed bg-emerald-300"
                   }`}
                 >
-                  <CheckCircle2 size={16} /> Finalizar Pedido
+                  <CheckCircle2 size={16} />
+                  {finalizandoPedido ? "Finalizando..." : "Finalizar Pedido"}
                   {temEstoqueInsuficiente && <span aria-hidden="true">⚠️</span>}
                 </button>
               )}
@@ -733,6 +782,11 @@ export default function NovoPedidoModal({ onClose = () => {} }) {
             {helperText() && (
               <p className="mt-2 text-center text-xs text-slate-400">
                 {helperText()}
+              </p>
+            )}
+            {erroFinalizacao && (
+              <p className="mt-2 text-center text-xs text-red-600">
+                {erroFinalizacao}
               </p>
             )}
           </div>
@@ -763,6 +817,8 @@ function ClienteStep({
   criarClienteEContinuar,
   erroNovoCliente,
   setNovoClienteError,
+  criandoCliente,
+  carregandoClientes,
 }) {
   return (
     <div>
@@ -806,10 +862,11 @@ function ClienteStep({
 
           <div className="space-y-2">
             {clientesFiltrados.map((c) => {
-              const isSelected = clienteSelecionado?.id === c.id;
+              const isSelected =
+                clienteSelecionado?.idCliente === c.idCliente;
               return (
                 <button
-                  key={c.id}
+                  key={c.idCliente}
                   onClick={() => setClienteSelecionado(c)}
                   className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
                     isSelected
@@ -829,7 +886,12 @@ function ClienteStep({
                 </button>
               );
             })}
-            {clientesFiltrados.length === 0 && (
+            {carregandoClientes && (
+              <p className="py-6 text-center text-sm text-slate-400">
+                Carregando clientes...
+              </p>
+            )}
+            {!carregandoClientes && clientesFiltrados.length === 0 && (
               <p className="py-6 text-center text-sm text-slate-400">
                 Nenhum cliente encontrado
               </p>
@@ -877,14 +939,20 @@ function ClienteStep({
 
           <button
             onClick={criarClienteEContinuar}
-            disabled={!novoCliente.nome.trim() || !novoCliente.telefone.trim()}
+            disabled={
+              criandoCliente ||
+              !novoCliente.nome.trim() ||
+              !novoCliente.telefone.trim()
+            }
             className={`w-full rounded-xl py-3 text-sm font-semibold text-white transition-colors ${
-              novoCliente.nome.trim() && novoCliente.telefone.trim()
+              novoCliente.nome.trim() &&
+              novoCliente.telefone.trim() &&
+              !criandoCliente
                 ? "bg-blue-600 hover:bg-blue-700"
                 : "cursor-not-allowed bg-blue-300"
             }`}
           >
-            Criar Cliente e Continuar
+            {criandoCliente ? "Criando cliente..." : "Criar Cliente e Continuar"}
           </button>
         </div>
       )}

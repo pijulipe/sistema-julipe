@@ -12,11 +12,14 @@ import {
   listarClientesSchema,
   substituirClienteSchema,
 } from "../validators/clienteValidator.js";
+import { carregarAcessoAtual } from "../middlewares/carregarAcessoAtual.js";
+import { UsuarioRepository } from "../repositories/usuarioRepository.js";
 
 const rotas = Router();
 const controller = new ClienteController(new ClienteService(new ClienteRepository()));
+const usuarioRepository = new UsuarioRepository();
 
-rotas.use(autenticar, autorizarModulo("CLIENTES"));
+rotas.use(autenticar, carregarAcessoAtual(usuarioRepository), autorizarModulo("CLIENTES"));
 rotas.post("/", validar(criarClienteSchema), controller.criar);
 rotas.get("/", validar(listarClientesSchema), controller.listar);
 rotas.get("/:id", validar(consultarClienteSchema), controller.buscarPorId);

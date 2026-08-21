@@ -4,7 +4,7 @@ API REST em Node.js, Express, Prisma e PostgreSQL.
 
 ## Configuração
 
-1. Copie `.env.example` para `.env` e preencha `DATABASE_URL` e `JWT_SECRET`.
+1. Copie `.env.example` para `.env` e preencha `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_URL` e `SUPABASE_JWT_SECRET`.
 2. Instale as dependências com `npm install`.
 3. Gere o Prisma Client com `npm run prisma:gerar`.
 4. Valide o schema com `npm run prisma:validar`.

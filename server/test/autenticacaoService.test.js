@@ -1,8 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import jwt from "jsonwebtoken";
 import { AutenticacaoService } from "../src/services/autenticacaoService.js";
 import { ambiente } from "../src/config/ambiente.js";
+
+const emissorSupabase = `${ambiente.SUPABASE_URL}/auth/v1`;
 
 test("troca token válido do Supabase por token interno", async () => {
   const uuidValido = "94bdca59-6fbf-433a-9c78-1112b172170d";
@@ -26,7 +29,12 @@ test("troca token válido do Supabase por token interno", async () => {
       sub: uuidValido,
     },
     ambiente.SUPABASE_JWT_SECRET,
-    { algorithm: "HS256", expiresIn: "5m", audience: "authenticated" },
+    {
+      algorithm: "HS256",
+      expiresIn: "5m",
+      audience: "authenticated",
+      issuer: emissorSupabase,
+    },
   );
 
   const tokenInterno = await servico.entrar(tokenSupabase);
@@ -60,7 +68,12 @@ test("rejeita token do Supabase com audiência incorreta", async () => {
       sub: uuidValido,
     },
     ambiente.SUPABASE_JWT_SECRET,
-    { algorithm: "HS256", expiresIn: "5m", audience: "anon" },
+    {
+      algorithm: "HS256",
+      expiresIn: "5m",
+      audience: "anon",
+      issuer: emissorSupabase,
+    },
   );
 
   await assert.rejects(
@@ -93,7 +106,12 @@ test("rejeita token do Supabase com sub inválido", async () => {
       sub: "textosimples",
     },
     ambiente.SUPABASE_JWT_SECRET,
-    { algorithm: "HS256", expiresIn: "5m", audience: "authenticated" },
+    {
+      algorithm: "HS256",
+      expiresIn: "5m",
+      audience: "authenticated",
+      issuer: emissorSupabase,
+    },
   );
 
   await assert.rejects(
@@ -124,7 +142,12 @@ test("rejeita token do Supabase com assinatura inválida", async () => {
   const tokenSupabase = jwt.sign(
     { sub: uuidValido },
     "segredo-incorreto-com-no-minimo-32-caracteres",
-    { algorithm: "HS256", expiresIn: "5m", audience: "authenticated" },
+    {
+      algorithm: "HS256",
+      expiresIn: "5m",
+      audience: "authenticated",
+      issuer: emissorSupabase,
+    },
   );
 
   await assert.rejects(
@@ -153,7 +176,12 @@ test("rejeita token quando não existe funcionário vinculado", async () => {
   const tokenSupabase = jwt.sign(
     { sub: uuidValido },
     ambiente.SUPABASE_JWT_SECRET,
-    { algorithm: "HS256", expiresIn: "5m", audience: "authenticated" },
+    {
+      algorithm: "HS256",
+      expiresIn: "5m",
+      audience: "authenticated",
+      issuer: emissorSupabase,
+    },
   );
 
   await assert.rejects(
@@ -181,7 +209,12 @@ test("rejeita token expirado do Supabase", async () => {
   const tokenSupabase = jwt.sign(
     { sub: uuidValido },
     ambiente.SUPABASE_JWT_SECRET,
-    { algorithm: "HS256", expiresIn: -1, audience: "authenticated" },
+    {
+      algorithm: "HS256",
+      expiresIn: -1,
+      audience: "authenticated",
+      issuer: emissorSupabase,
+    },
   );
 
   await assert.rejects(
@@ -193,4 +226,53 @@ test("rejeita token expirado do Supabase", async () => {
     },
   );
   assert.equal(repositoryConsultado, false);
+});
+
+test("troca token ES256 válido do Supabase por token interno", async () => {
+  const uuidValido = "64bdca59-6fbf-433a-9c78-1112b172170d";
+  const idUsuario = "20bdcf59-6fbf-433a-9c78-1112b172170e";
+  const identificadorChave = "chave-teste-es256";
+  const { privateKey, publicKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+  });
+  const chavePublicaJwk = publicKey.export({ format: "jwk" });
+
+  const usuarioRepository = {
+    async buscarPorAutenticacaoSupabase() {
+      return {
+        idUsuario,
+        perfilAcesso: "ATENDENTE",
+        permissoes: ["CLIENTES"],
+      };
+    },
+  };
+  const servico = new AutenticacaoService(usuarioRepository, {
+    async obterJwks() {
+      return {
+        keys: [
+          {
+            ...chavePublicaJwk,
+            kid: identificadorChave,
+            alg: "ES256",
+            key_ops: ["verify"],
+          },
+        ],
+      };
+    },
+  });
+  const tokenSupabase = jwt.sign({ sub: uuidValido }, privateKey, {
+    algorithm: "ES256",
+    keyid: identificadorChave,
+    expiresIn: "5m",
+    audience: "authenticated",
+    issuer: emissorSupabase,
+  });
+
+  const tokenInterno = await servico.entrar(tokenSupabase);
+  const conteudoTokenInterno = jwt.verify(tokenInterno, ambiente.JWT_SECRET, {
+    algorithms: ["HS256"],
+  });
+
+  assert.equal(conteudoTokenInterno.sub, idUsuario);
+  assert.deepEqual(conteudoTokenInterno.permissoes, ["CLIENTES"]);
 });

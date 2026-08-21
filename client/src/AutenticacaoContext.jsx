@@ -4,6 +4,7 @@ import {
   obterSessao,
   sair,
   acompanharAutenticacao,
+  trocarTokenSupabase,
 } from "./services/autenticacaoService.js";
 
 const AutenticacaoContext = createContext(null);
@@ -11,37 +12,71 @@ const AutenticacaoContext = createContext(null);
 export function AutenticacaoProvider({ children }) {
   const [sessao, setSessao] = useState(null);
   const [usuario, setUsuario] = useState(null);
+  const [tokenInterno, setTokenInterno] = useState(null);
   const [carregandoAutenticacao, setCarregandoAutenticacao] = useState(true);
 
   useEffect(() => {
     async function restaurarSessao() {
       try {
-        const { sessao, usuario } = await obterSessao();
+        const { sessao, usuario, tokenInterno } = await obterSessao();
         setSessao(sessao);
         setUsuario(usuario);
+        setTokenInterno(tokenInterno);
       } catch {
         setSessao(null);
         setUsuario(null);
+        setTokenInterno(null);
         console.log("Erro ao restaurar sessão");
       } finally {
         setCarregandoAutenticacao(false);
       }
     }
     restaurarSessao();
-    const inscricaoAutenticacao = acompanharAutenticacao((sessaoAtual, usuarioAtual) => {
-      setSessao(sessaoAtual);
-      setUsuario(usuarioAtual);
-      setCarregandoAutenticacao(false);
-    });
-    return ()=>{
-      inscricaoAutenticacao.unsubscribe();
+
+    async function renovarToken(sessaoAtual) {
+      let jwtRetornado;
+      try {
+        jwtRetornado = await trocarTokenSupabase(sessaoAtual.access_token);
+        setTokenInterno(jwtRetornado);
+      } catch {
+        try {
+          await sair();
+        } finally {
+          setSessao(null);
+          setUsuario(null);
+          setTokenInterno(null);
+        }
+        return;
+      }
     }
+
+    const inscricaoAutenticacao = acompanharAutenticacao(
+      (evento, sessaoAtual, usuarioAtual) => {
+        if (sessaoAtual === null) {
+          setSessao(null);
+          setUsuario(null);
+          setTokenInterno(null);
+          setCarregandoAutenticacao(false);
+          return;
+        }
+        setSessao(sessaoAtual);
+        setUsuario(usuarioAtual);
+
+        if (evento === "TOKEN_REFRESHED") {
+          renovarToken(sessaoAtual);
+        }
+      },
+    );
+    return () => {
+      inscricaoAutenticacao.unsubscribe();
+    };
   }, []);
 
   async function fazerLogin({ email, senha }) {
     const resultado = await entrar({ email, senha });
     setSessao(resultado.sessao);
     setUsuario(resultado.usuario);
+    setTokenInterno(resultado.tokenInterno);
     return resultado;
   }
 
@@ -50,11 +85,20 @@ export function AutenticacaoProvider({ children }) {
 
     setSessao(null);
     setUsuario(null);
+    setTokenInterno(null);
   }
 
   return (
     <AutenticacaoContext.Provider
-      value={{ sessao, usuario, autenticado: Boolean(sessao), fazerLogin, carregandoAutenticacao, fazerLogout }}
+      value={{
+        sessao,
+        usuario,
+        autenticado: Boolean(sessao && tokenInterno),
+        fazerLogin,
+        carregandoAutenticacao,
+        fazerLogout,
+        tokenInterno,
+      }}
     >
       {children}
     </AutenticacaoContext.Provider>

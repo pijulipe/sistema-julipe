@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.js",
+    "dev": "node --use-system-ca --watch src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
     "banco:testar": "node --env-file=.env scripts/testarConexao.js",

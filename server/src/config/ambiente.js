@@ -6,6 +6,7 @@ const esquemaAmbiente = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória."),
   JWT_SECRET: z.string().min(32, "JWT_SECRET deve possuir pelo menos 32 caracteres."),
   SUPABASE_JWT_SECRET: z.string().min(32, "SUPABASE_JWT_SECRET é obrigatório e deve possuir pelo menos 32 caracteres."),
+  SUPABASE_URL: z.string().url("SUPABASE_URL deve ser uma URL válida."),
   PORTA: z.coerce.number().int().positive().default(3000),
   ORIGENS_PERMITIDAS: z.string().default("http://localhost:5173"),
 });
@@ -19,6 +20,7 @@ if (!resultado.success) {
 
 export const ambiente = {
   ...resultado.data,
+  SUPABASE_URL: resultado.data.SUPABASE_URL.replace(/\/$/, ""),
   origensPermitidas: resultado.data.ORIGENS_PERMITIDAS.split(",")
     .map((origem) => origem.trim())
     .filter(Boolean),
