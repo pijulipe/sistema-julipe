@@ -223,7 +223,7 @@ Ambiente backend: `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_JWT_SECRET`, `SUPABASE
 - `limites_horario` ainda não restringe escrita ao gerente;
 - existem políticas redundantes em `usuarios`;
 - dados de negócio devem continuar passando pela API, não diretamente pelo Supabase;
-- a autorização de `ADMINISTRADOR` no backend ainda precisa ser confirmada.
+- as políticas RLS atuais ainda não representam integralmente a matriz de administração de funcionários confirmada para a primeira versão.
 
 Alterações de RLS ou permissões exigem proposta e confirmação.
 
@@ -266,6 +266,28 @@ O banco representa categorias, produtos, combos, clientes, usuários, permissõe
 
 ## Usuários e permissões
 
+- As regras abaixo representam a primeira versão vigente do módulo. Devem ficar centralizadas e cobertas por testes para permitir evolução posterior sem espalhar decisões de autorização pelo sistema.
+- `GERENTE` possui acesso funcional total, independentemente de permissões individuais.
+- Nenhum usuário pode editar um `GERENTE`, inclusive o próprio gerente.
+- Gerente pode cadastrar funcionários com perfil `ATENDENTE`, `ADMINISTRADOR` ou `GERENTE`.
+- Somente gerente pode alterar o `perfilAcesso` de um funcionário que não seja gerente.
+- Gerente pode consultar e editar as permissões de atendentes e administradores.
+- `ADMINISTRADOR` pode cadastrar somente funcionários com perfil `ATENDENTE`.
+- Administrador pode consultar e editar as permissões de atendentes e de outros administradores.
+- Administrador não pode editar a si próprio nem qualquer gerente.
+- Atendente não administra funcionários ou permissões.
+- O catálogo inicial de permissões por módulo é: `PEDIDOS`, `PRODUCAO`, `PRODUTO`, `COMBOS`, `RELATORIO`, `CLIENTES`, `ESTOQUE`, `EXPEDICAO` e `FUNCIONARIOS`.
+- Início, novo pedido e configurações não são permissões independentes nesta primeira versão; novo pedido pertence ao módulo `PEDIDOS`.
+- A primeira versão administrará permissões individuais. Cargos configuráveis, herança e exceções negativas permanecem como evolução futura.
+- Gerente e administrador podem consultar o catálogo administrativo de módulos; atendente não possui esse acesso.
+- A listagem administrativa de funcionários inclui, por padrão, ativos e inativos que não estejam excluídos logicamente, podendo filtrar explicitamente pela atividade.
+- Funcionários com `itemAtivo = false` ou `deletadoEm` preenchido não aparecem nas consultas administrativas comuns.
+- Gerente e administrador podem consultar os dados e as permissões de funcionários ativos ou inativos, respeitando as restrições de edição por perfil.
+- Permissões de atendentes e administradores inativos podem ser alteradas por quem possuir autoridade sobre o funcionário.
+- A substituição de permissões aceita uma lista vazia para revogar todas as permissões individuais e deve ser atômica, idempotente e sem exclusão física.
+- Somente chaves do catálogo vigente podem ser concedidas. Consultas ignoram chaves desconhecidas sem apagá-las; uma substituição explícita desativa logicamente permissões ativas que não estejam no conjunto solicitado.
+- Gerente pode alterar o perfil de atendentes e administradores ativos ou inativos. Repetir o perfil atual é uma operação idempotente.
+- Alterar o perfil preserva as permissões individuais existentes. Ao promover para `GERENTE`, elas deixam de controlar o acesso, mas permanecem armazenadas; o gerente promovido torna-se imutável pelas regras vigentes.
 - O modelo futuro combinará permissões do cargo e individuais.
 - Cada módulo poderá ser concedido ou retirado por funcionário.
 - Limite de desconto será definido por cargo.
@@ -298,7 +320,6 @@ Não implementar comportamento definitivo destes itens sem confirmação. Quando
 
 - Quais cargos configuráveis existirão?
 - A exceção individual concede, retira herança do cargo ou faz ambos?
-- Qual é a função de `ADMINISTRADOR` e seu nível de acesso?
 - Autorização de desconto extra vale para uma venda ou pode ser permanente?
 - Como persistir a auditoria de cada ação no pedido?
 
