@@ -1,609 +1,379 @@
-# Backend Context - JULIPE
+# Contexto Oficial do Projeto — JULIPE
 
-> Documento oficial de arquitetura e desenvolvimento do backend.
+> Documento principal de arquitetura, desenvolvimento e regras de negócio.
 >
-> Este arquivo serve como contexto principal para qualquer IA (Codex, ChatGPT, Cursor, Claude etc.) e também para qualquer desenvolvedor que participe do projeto.
+> Revisado a partir do código em 22/08/2026.
 >
-> Todas as implementações devem seguir as diretrizes descritas neste documento.
->
-> Caso exista conflito entre este documento e uma nova solicitação do usuário, o assistente deve informar o conflito e solicitar confirmação antes de modificar a arquitetura, regras de negócio ou padrões estabelecidos.
+> Se uma solicitação conflitar com uma decisão confirmada aqui, informar o conflito antes de alterar o projeto. Regras pendentes não podem ser decididas por suposição: solicitar confirmação e documentá-la antes da implementação.
 
 ---
 
-# Sobre o Projeto
+# Visão Geral
 
-O projeto consiste em um sistema web para gerenciamento interno de uma doceria.
+O JULIPE é um sistema web de gerenciamento interno de uma doceria, abrangendo pedidos, clientes, funcionários, produção, estoque, produtos, combos, expedição, relatórios e configurações.
 
-O objetivo é organizar e facilitar o gerenciamento de pedidos, clientes, funcionários e demais processos internos da empresa.
+O projeto está em desenvolvimento. Autenticação e clientes já estão integrados entre frontend, backend e banco. Os demais módulos exibidos no frontend são, em sua maioria, protótipos funcionais mantidos apenas no estado do React, sem persistência pela API.
 
-O backend deve ser desenvolvido pensando em:
+Princípios obrigatórios:
 
-- organização
-- segurança
-- escalabilidade
-- facilidade de manutenção
-- código limpo
-- baixo acoplamento
-- alta coesão
-
-O projeto poderá crescer ao longo do desenvolvimento.
-
-Portanto, nenhuma implementação deve assumir que a estrutura atual será definitiva.
+- segurança, organização e facilidade de manutenção;
+- código limpo, baixo acoplamento e alta coesão;
+- estruturas preparadas para crescimento;
+- validação de entradas e permissões no backend;
+- decisões pendentes nunca devem ser inferidas do protótipo visual.
 
 ---
 
-# Arquitetura Geral
+# Arquitetura e Stack
 
-Frontend
-
-React + Vite
-
-↓
-
-Backend
-
-Node.js + Express
-
-↓
-
-ORM
-
-Prisma
-
-↓
-
-Banco de Dados
-
-PostgreSQL (Supabase)
-
----
-
-# Banco de Dados
-
-O banco de dados oficial do projeto será o PostgreSQL disponibilizado pelo Supabase.
-
-O Supabase será utilizado para hospedagem e gerenciamento da infraestrutura do banco de dados.
-
-O acesso ao banco de dados deve ficar isolado na camada de Repository, permitindo que a tecnologia de persistência seja substituída com o menor impacto possível.
-
----
-
-# Tecnologia de Acesso ao Banco
-
-O Prisma será o ORM oficial do projeto.
-
-Todo acesso ao banco deverá continuar isolado na camada de Repository. Services e Controllers não devem acessar o Prisma diretamente.
-
----
-
-# Stack Tecnológica
+```text
+Frontend React + Vite
+        ↓ API REST/JSON
+Backend Node.js + Express
+        ↓ Prisma Client (somente Repositories)
+PostgreSQL hospedado no Supabase
+```
 
 ## Frontend
 
-- React
-- Vite
-- JavaScript
-
-Hospedagem:
-
-- Vercel
-
----
+- React 19, Vite, JavaScript com ES Modules e Context API;
+- Supabase JS para autenticação;
+- Tailwind CSS, CSS próprio e Lucide React;
+- variáveis `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_API_URL`;
+- hospedagem prevista: Vercel.
 
 ## Backend
 
-- Node.js
-- Express
-- API REST
+- Node.js 20 ou superior, Express 5 e JavaScript com ES Modules;
+- API REST, Prisma 6, Zod, jsonwebtoken, Helmet, CORS e dotenv;
+- testes com `node:test`;
+- hospedagem prevista: Render.
 
-Hospedagem:
+## Banco e autenticação
 
-- Render
+- PostgreSQL e Supabase Auth;
+- RLS habilitada nas tabelas do `schema.sql`;
+- Prisma Client para persistência no backend.
 
----
-
-## Banco de Dados
-
-- PostgreSQL (Supabase)
-
-Hospedagem:
-
-- Supabase
+`bcrypt` só será necessário caso o backend passe a armazenar senhas. No fluxo atual, credenciais pertencem ao Supabase Auth e não passam pelo backend. Evitar dependências novas quando a stack atual resolver o problema. Trocas de tecnologia principal exigem aprovação.
 
 ---
 
-## ORM
+# Estrutura Atual
 
-O projeto utilizará o Prisma como ORM oficial.
-
-O Prisma Client será utilizado pelos Repositories para a comunicação com o PostgreSQL do Supabase.
-
-SQL puro deverá ser utilizado apenas quando existir uma necessidade técnica claramente justificada.
-
----
-
-## Bibliotecas Padrão
-
-Sempre priorizar as seguintes bibliotecas:
-
-- Express
-- JWT
-- bcrypt
-- Zod
-- Helmet
-- CORS
-- dotenv
-- Prisma
-
-Evitar adicionar novas dependências quando alguma biblioteca já utilizada resolver o problema.
-
-Caso seja necessário trocar uma biblioteca principal, solicitar aprovação do usuário.
-
----
-
-# Organização do Projeto
-
-Estrutura esperada:
-
-backend/
-
-src/
-
-controllers/
-
-services/
-
-repositories/
-
-routes/
-
-middlewares/
-
-validators/
-
-config/
-
-utils/
-
-database/
-
-server.js
-
-Cada camada possui uma responsabilidade específica.
-
-Controllers
-
-- recebem requisições
-- chamam services
-- retornam respostas
-
-Services
-
-- concentram toda regra de negócio
-
-Repositories
-
-- acesso ao banco de dados
-
-Validators
-
-- validações
-
-Middlewares
-
-- autenticação
-- autorização
-- tratamento de erros
-- demais responsabilidades transversais
-
----
-
-# Idioma do Projeto
-
-Todo o código deve ser escrito em português.
-
-Isso inclui:
-
-- variáveis
-- funções
-- classes
-- arquivos
-- pastas
-- tabelas
-- colunas
-- endpoints
-- comentários técnicos
-- logs
-- nomes internos
-
-As mensagens destinadas ao usuário devem permanecer em português.
-
-Exemplo:
-
-```js
-const usuarioNaoEncontrado = true;
-
-return res.status(404).json({
-    message: "Usuário não encontrado."
-});
+```text
+PI - JULIPE/
+├── client/                    # React/Vite
+│   └── src/
+│       ├── config/            # API e Supabase
+│       ├── services/          # HTTP e autenticação
+│       ├── *Context.jsx       # estado compartilhado
+│       └── *Panel/Modal.jsx   # telas e componentes
+├── server/                    # API Express
+│   ├── prisma/schema.prisma
+│   ├── scripts/
+│   ├── src/
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── database/
+│   │   ├── middlewares/
+│   │   ├── repositories/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── utils/
+│   │   ├── app.js
+│   │   └── server.js
+│   └── test/
+├── documentacao_bd/
+├── schema.sql                 # criação oficial do banco
+└── AGENTS.md
 ```
 
----
-
-# API
-
-A API seguirá o padrão REST.
-
-Utilizar corretamente:
-
-- GET
-- POST
-- PUT
-- PATCH
-- DELETE
-
-Sempre utilizar códigos HTTP apropriados.
+O diretório real do backend é `server/`, não `backend/`.
 
 ---
 
-# Autenticação
+# Padrões Utilizados
 
-Inicialmente utilizar JWT.
+## Backend em camadas
 
-Fluxo esperado:
+- **Routes:** endpoints, middlewares e composição de dependências.
+- **Controllers:** adaptação HTTP; recebem dados validados, chamam Services e respondem. Não contêm regras nem Prisma.
+- **Services:** regras de negócio e erros esperados por `ErroAplicacao`.
+- **Repositories:** único local autorizado a importar Prisma e acessar o banco.
+- **Validators:** contratos de corpo, parâmetros e consulta com Zod.
+- **Middlewares:** autenticação, acesso atual, autorização, validação e erros.
 
-Login
+As dependências são injetadas por construtor na composição das rotas. Preservar esse padrão para manter baixo acoplamento e testes com dependências substitutas.
 
-↓
+## Convenções
 
-Validação
+- Todo código, arquivo, endpoint, comentário, log e mensagem deve permanecer em português.
+- JavaScript e API usam `camelCase`; o banco usa `snake_case`.
+- Prisma pode usar `@map` e `@@map` para conciliar as convenções.
+- IDs `BIGINT` devem ser serializados como texto no JSON.
+- Exclusão histórica segue `item_ativo = false` e `deletado_em`, quando prevista.
+- Datas sem horário usam `AAAA-MM-DD` e devem ser validadas como datas reais.
 
-↓
+## Contrato HTTP atual
 
-JWT
+- sucesso: `dados` e, quando útil, `mensagem`;
+- paginação: `dados` e `paginacao`;
+- falha: `mensagem`, podendo incluir `detalhes` ou `erros`;
+- validação `422`, autenticação `401`, permissão `403`, ausência `404`;
+- criação `201`, exclusão sem corpo `204`, erro inesperado `500`.
 
-↓
+## Frontend
 
-Frontend envia Authorization Bearer Token
-
-↓
-
-Backend valida token
-
-↓
-
-Executa a operação
-
----
-
-# Sistema de Permissões
-
-O sistema possui hierarquia de usuários.
-
-Essa estrutura deverá permitir crescimento futuro.
-
-## Gerente
-
-Possui acesso total.
-
-Pode:
-
-- cadastrar funcionários
-- editar funcionários
-- remover funcionários
-- alterar permissões
-- acessar qualquer tela
-- acessar qualquer funcionalidade
+- HTTP em `client/src/services/`;
+- configuração externa em `client/src/config/`;
+- estado compartilhado por Providers e hooks;
+- respostas `401` no módulo de clientes encerram a sessão;
+- autenticação e clientes usam serviços reais. Não copiar o estado em memória dos módulos prototipados para integrações definitivas.
 
 ---
 
-## Funcionário
+# Estado Atual da Implementação
 
-As permissões serão determinadas pelo gerente.
+## Integrado
 
-Cada funcionário poderá possuir acesso apenas aos módulos autorizados.
+### Infraestrutura
 
-Exemplos:
+- Express com Helmet, CORS por origens e JSON limitado a 1 MB;
+- `GET /api/saude`;
+- ambiente validado com Zod;
+- erros e rota inexistente tratados centralmente;
+- encerramento gracioso e desconexão do Prisma.
 
-- pedidos
-- clientes
-- produção
-- estoque
-- financeiro
-- relatórios
-- configurações
+### Autenticação
 
-Novas permissões poderão surgir futuramente.
+- login por e-mail e senha no Supabase Auth;
+- troca do token Supabase em `POST /api/autenticacao/entrar`;
+- validação de tokens Supabase HS256 ou ES256;
+- ES256 usa JWKS com cache de 10 minutos e nova consulta ao não achar a chave;
+- validação de emissor, audiência `authenticated` e expiração;
+- vínculo por `usuarios.id_autenticacao_supabase`;
+- rejeição de funcionário inativo, excluído ou não vinculado;
+- JWT interno HS256 com validade de 8 horas;
+- renovação do token interno após renovação da sessão Supabase;
+- logout se a troca de token falhar.
 
-A arquitetura deve facilitar essa expansão.
+O JWT interno contém `sub`, `perfilAcesso` e `permissoes`. Rotas protegidas devem recarregar do banco o perfil, a atividade e as permissões atuais antes de autorizar; o token não é a fonte definitiva de autorização.
+
+### Autorização de clientes
+
+```text
+autenticar JWT
+  → carregar acesso atual do banco
+  → autorizar CLIENTES
+  → validar entrada
+  → Controller → Service → Repository
+```
+
+- `GERENTE` possui acesso hierárquico;
+- outros perfis precisam da permissão individual ativa `CLIENTES`;
+- concessões, revogações e desativação valem na requisição seguinte.
+
+### Clientes
+
+- `POST /api/clientes`: cadastrar;
+- `GET /api/clientes`: listar, paginar e buscar por nome, telefone ou bairro;
+- `GET /api/clientes/:id`: consultar;
+- `PUT /api/clientes/:id`: substituir campos editáveis;
+- `PATCH /api/clientes/:id`: alterar parcialmente;
+- `DELETE /api/clientes/:id`: excluir logicamente.
+
+Nome e telefone são obrigatórios. Telefone é validado, mas não é único. Vazios opcionais são normalizados para `null`. Excluídos não aparecem nas consultas comuns.
+
+### Testes existentes
+
+Cobrem autenticação HS256/ES256, audiência, assinatura, expiração, vínculo, endpoint de login, autorização por módulo, recarga/revogação de acesso e regras principais do Service de clientes.
+
+## Parcial ou protótipo
+
+- pedidos, produtos, combos, funcionários, estoque e configurações usam estado React em memória;
+- IDs são contadores locais e os dados se perdem ao recarregar;
+- produção, expedição, dashboard e relatórios calculam sobre pedidos em memória;
+- o fluxo visual de status permite avanços e retornos, mas não define a regra final;
+- horários, alertas de capacidade e baixa automática de estoque são provisórios;
+- funcionários e seleção de telas não usam API nem cargos definitivos;
+- não há rotas backend para esses módulos.
+
+Comportamentos desses protótipos orientam interface e discussão, mas não confirmam regras pendentes.
 
 ---
 
 # Segurança
 
-Nunca confiar em informações enviadas pelo frontend.
+Nunca confiar no frontend. Validar autenticação, usuário atual, autorização e entrada no backend.
 
-Sempre:
+- Prisma somente em Repositories.
+- Segredos somente em ambiente.
+- Nunca expor `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_JWT_SECRET`, senhas ou tokens.
+- `VITE_SUPABASE_ANON_KEY` é pública e não substitui autorização.
+- Restringir algoritmos JWT e validar emissor, audiência e expiração.
+- Erros `500` não revelam detalhes internos.
+- RLS é defesa adicional, não substituta da API.
 
-- validar entradas
-- validar permissões
-- validar autenticação
+Ambiente backend: `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_JWT_SECRET`, `SUPABASE_URL`, `PORTA`, `ORIGENS_PERMITIDAS` e `NODE_ENV`.
 
-Utilizar:
+## Alertas abertos
 
-- Helmet
-- CORS
-- bcrypt
-- JWT
-- variáveis de ambiente
-- Prisma
+- várias políticas RLS ainda concedem acesso total a qualquer usuário `authenticated`;
+- `limites_horario` ainda não restringe escrita ao gerente;
+- existem políticas redundantes em `usuarios`;
+- dados de negócio devem continuar passando pela API, não diretamente pelo Supabase;
+- a autorização de `ADMINISTRADOR` no backend ainda precisa ser confirmada.
 
-Nunca expor:
-
-- DATABASE_URL
-- JWT_SECRET
-- senhas
-- credenciais
-- tokens privados
+Alterações de RLS ou permissões exigem proposta e confirmação.
 
 ---
 
-# Banco de Dados
+# Banco de Dados e Prisma
 
-O banco de dados oficial será PostgreSQL, hospedado e gerenciado pelo Supabase.
+`schema.sql` é a referência oficial de criação. `server/prisma/schema.prisma` mapeia o banco. Mudanças estruturais devem mantê-los coerentes, mas não modelar pendências sem aprovação. Check constraints e RLS exigem tratamento adicional em migrações; não presumir que o Prisma sozinho recria todas as garantias.
 
-O diagrama já existe e será utilizado como referência durante o desenvolvimento.
+O banco representa categorias, produtos, combos, clientes, usuários, permissões individuais, limites, entregadores, acessórios, pedidos, itens, configurações, exclusão lógica, índices, RLS e sincronização de novos usuários do Supabase Auth com perfil inicial `ATENDENTE`.
 
-Sempre priorizar:
+## Características observáveis, ainda sujeitas às regras pendentes
 
-- normalização
-- integridade referencial
-- índices quando necessário
-
-Evitar duplicação de dados.
-
----
-
-# ORM
-
-O Prisma será o ORM oficial do projeto e deverá ser utilizado considerando:
-
-- compatibilidade com o banco escolhido
-- segurança
-- facilidade de manutenção
-- suporte a migrações
-- desempenho
-- maturidade da tecnologia
-- experiência da equipe
-
-O acesso ao Prisma deve permanecer restrito à camada de Repository.
+- podem existir vários `GERENTE` e `ADMINISTRADOR`;
+- perfis atuais: `ADMINISTRADOR`, `GERENTE` e `ATENDENTE`;
+- permissões individuais são textos ligados ao usuário;
+- telefone de cliente é obrigatório e repetível;
+- cliente possui um único conjunto de endereço;
+- pedido pode conter produtos e combos, com referência exclusiva por item;
+- `preco_unitario` preserva o preço da venda;
+- endereço da venda não é preservado no pedido;
+- existe uma única forma de pagamento textual;
+- pagamentos: `PENDENTE`, `PAGO`, `PARCIAL`, `REJEITADO`, `ESTORNADO`, `CANCELADO`;
+- não há valor pago, saldo ou parcelas para `PARCIAL`;
+- desconto percentual e em valor coexistem sem regra de combinação;
+- imagens são URLs sem serviço ou limites definidos;
+- `limites_horario` guarda data, intervalo, limite, agendados e bloqueio;
+- pedido guarda apenas `id_usuario_atendente`, sem auditoria completa de alterações.
 
 ---
 
-# Regras de Negócio
-
-Esta seção deverá crescer conforme o projeto evoluir.
-
-Toda nova regra importante deverá ser documentada aqui.
-
-Exemplos:
-
-- fluxo dos pedidos
-- controle de produção
-- descontos
-- fechamento de caixa
-- controle de funcionários
-- permissões
-- clientes
-- pagamentos
+# Regras Confirmadas
 
 ## Clientes
 
-- O gerente possui acesso total ao módulo de clientes.
-- Funcionários somente podem cadastrar, consultar, alterar ou excluir clientes quando possuírem acesso ao módulo `CLIENTES`.
-- O telefone do cliente é obrigatório, mas pode se repetir em cadastros diferentes, conforme o esquema atual.
-- A exclusão de clientes é lógica: o registro deve ser marcado como inativo e receber a data de exclusão, preservando seu histórico.
+- Gerente possui acesso total.
+- Funcionário precisa do módulo `CLIENTES`.
+- Telefone é obrigatório e pode repetir.
+- Exclusão é lógica.
 
-## Usuários e Permissões
+## Usuários e permissões
 
-- O modelo de permissões combinará permissões associadas ao cargo com permissões individuais por funcionário.
-- Cada módulo do sistema deverá poder ser concedido ou retirado individualmente para cada funcionário.
-- O sistema deverá registrar o nome da atendente responsável pela criação, edição, cancelamento e alteração de status de cada pedido.
-- O limite de desconto será definido por cargo.
-- O gerente poderá autorizar um desconto acima do limite definido para o cargo do funcionário.
+- O modelo futuro combinará permissões do cargo e individuais.
+- Cada módulo poderá ser concedido ou retirado por funcionário.
+- Limite de desconto será definido por cargo.
+- Gerente poderá autorizar desconto acima do limite.
 
-## Pedidos e Auditoria
+`permissoes_funcionario` resolveu permissões individuais simples e já protege clientes. Não resolve cargos configuráveis, herança nem exceções negativas; o modelo combinado continua incompleto.
 
-- As mudanças de status não precisarão seguir obrigatoriamente todas as etapas intermediárias; por exemplo, um pedido poderá passar diretamente de `RECEBIDO` para `PRONTO`.
-- Pedidos entregues ou cancelados não poderão ser reabertos. Permanece pendente confirmar se o gerente será uma exceção a essa regra.
-- Pedidos cancelados deverão permanecer visíveis nos relatórios.
-- Pedidos cancelados deverão ser excluídos de todos os cálculos de faturamento.
-- Ao criar um pedido para entrega, o endereço deverá ser inicialmente preenchido com o endereço cadastrado do cliente e poderá ser alterado para aquela venda.
-- Ainda deverá ser confirmado se a alteração feita durante o pedido também atualizará o cadastro do cliente e como o endereço efetivamente utilizado será preservado no histórico do pedido.
+## Pedidos e auditoria
 
-## Capacidade de Produção
+- Status podem saltar etapas; `RECEBIDO → PRONTO` é permitido.
+- Entregues e cancelados não reabrem, faltando decidir a exceção do gerente.
+- Cancelados ficam nos relatórios e não entram no faturamento.
+- Endereço de entrega inicia com o do cliente e pode ser alterado na venda.
+- Deve-se registrar a atendente responsável por criação, edição, cancelamento e mudança de status.
 
-- A capacidade de produção será controlada por intervalos de horário configuráveis.
-- O gerente poderá definir a duração de cada intervalo e a quantidade máxima de pedidos aceita nele.
-- Exemplo de configuração: no máximo 5 pedidos a cada 30 minutos.
-- Quando o limite de um intervalo for atingido, o sistema não deverá aceitar novos pedidos para esse mesmo intervalo.
-- A configuração deverá permanecer flexível, sem fixar no código a duração do intervalo nem a quantidade máxima de pedidos.
+## Capacidade
 
-## Decisões representadas pelo esquema atual
-
-O arquivo `schema.sql` representa atualmente as decisões abaixo. Essas decisões deverão ser validadas com a doceria antes de serem tratadas como definitivas caso ainda não tenham sido confirmadas diretamente por ela.
-
-- O banco permite cadastrar mais de um gerente, pois o perfil é atribuído individualmente a cada usuário e não existe restrição de unicidade para o perfil `GERENTE`.
-- O telefone do cliente é obrigatório, mas não é único.
-- Cada cliente possui somente um conjunto de campos de endereço na tabela `clientes`; o modelo atual não permite vários endereços estruturados por cliente.
-- Para clientes, os dados de negócio obrigatórios são nome e telefone.
-- Um mesmo pedido pode conter produtos e combos simultaneamente, embora cada item individual deva referenciar exclusivamente um produto ou um combo.
-- Os preços dos itens são registrados no pedido por meio do campo `preco_unitario`, preservando o preço praticado na venda.
-- O endereço utilizado na venda não é preservado separadamente no pedido; atualmente ele permanece apenas no cadastro do cliente.
-- Cada pedido possui somente um campo textual de forma de pagamento. O modelo atual não representa múltiplas formas de pagamento no mesmo pedido.
-- Os estados de pagamento disponíveis são `PENDENTE`, `PAGO`, `PARCIAL`, `REJEITADO`, `ESTORNADO` e `CANCELADO`.
-- Apesar de existir o estado `PARCIAL`, o banco não possui campos ou registros separados para valor pago e valor restante.
-- O banco possui campos para desconto percentual e desconto em valor, mas não define as regras de aplicação, prioridade ou combinação entre eles.
-- O banco registra a URL de imagens de produtos e de fotos de referência dos pedidos, mas não define o serviço de armazenamento nem as regras de formato e tamanho dos arquivos.
-- A tabela `limites_horario` permite representar intervalos, limite de pedidos, quantidade agendada e bloqueio. A autorização para configurar esses limites deverá ser restrita ao gerente na implementação; a política RLS atual ainda permite escrita a qualquer usuário autenticado.
-
-## Incompatibilidade de permissões a resolver
-
-O modelo combinado de permissões por cargo e por funcionário está confirmado, mas o esquema atual oferece apenas perfis fixos de acesso (`ADMINISTRADOR`, `GERENTE` e `ATENDENTE`). Ele ainda não representa cargos configuráveis, permissões associadas aos cargos, permissões individuais por módulo nem exceções individuais sobre as permissões do cargo. A implementação dessa decisão exigirá proposta de modelagem e aprovação antes da alteração do banco de dados.
+- Controle por intervalos configuráveis.
+- Gerente define duração e quantidade máxima.
+- Intervalo lotado rejeita novos pedidos.
+- Duração e quantidade não podem ser fixadas no código.
 
 ---
 
 # Decisões Pendentes com a Doceria
 
-As regras abaixo ainda precisam ser confirmadas com a doceria antes da modelagem definitiva do banco de dados e da implementação dos módulos relacionados.
+Não implementar comportamento definitivo destes itens sem confirmação. Quando houver resposta, atualizar primeiro as regras confirmadas.
 
-## Usuários e Permissões
+## Usuários e permissões
 
-- Como as permissões individuais serão combinadas com as do cargo: somente para conceder acessos adicionais, somente para retirar acessos ou para permitir ambos os tipos de exceção?
-- A autorização do gerente para ultrapassar o limite de desconto valerá somente para uma venda específica ou poderá ser permanente para determinado funcionário?
+- Quais cargos configuráveis existirão?
+- A exceção individual concede, retira herança do cargo ou faz ambos?
+- Qual é a função de `ADMINISTRADOR` e seu nível de acesso?
+- Autorização de desconto extra vale para uma venda ou pode ser permanente?
+- Como persistir a auditoria de cada ação no pedido?
 
 ## Pedidos
 
-- Além do salto confirmado de `RECEBIDO` para `PRONTO`, quais outras transições e retornos entre status serão permitidos?
-- A proibição de reabrir pedidos entregues ou cancelados também se aplica ao gerente, ou o gerente será a única exceção?
-- Ao alterar o endereço durante a criação do pedido, a mudança deverá atualizar o cadastro do cliente ou valer somente para aquela venda?
-- O endereço efetivamente utilizado na venda deverá ser preservado no pedido, sem ser afetado por futuras alterações no cadastro do cliente?
+- Quais transições e retornos serão permitidos?
+- Gerente poderá reabrir entregue ou cancelado?
+- Alterar endereço no pedido atualiza o cliente ou só a venda?
+- O endereço efetivo deve ficar preservado no pedido?
 
-## Pagamentos e Descontos
+## Pagamentos e descontos
 
-- Quais formas de pagamento serão utilizadas?
-- Como funcionarão descontos em valor e em porcentagem?
+- Quais formas de pagamento?
+- Haverá múltiplas formas no mesmo pedido?
+- Como representar parcial, valor pago e saldo?
+- Como combinar desconto em valor e porcentagem?
 
-## Estoque e Produção
+## Estoque e produção
 
-- Em qual momento o estoque deverá ser descontado?
-- O cancelamento de um pedido sempre deverá devolver itens ao estoque?
-- O estoque representará produtos prontos, ingredientes ou ambos?
-- Será necessário controlar estoque de ingredientes futuramente?
+- Quando baixar estoque?
+- Cancelamento sempre devolve itens?
+- Estoque representa produtos, ingredientes ou ambos?
+- Haverá controle de ingredientes?
 
-As decisões exclusivas do estoque poderão ser adiadas até o planejamento desse módulo, previsto para o próximo ano. A integração entre cancelamento de pedidos e devolução ao estoque também poderá ser definida nessa etapa, sem bloquear a implementação atual dos pedidos.
+Questões exclusivas de estoque podem aguardar o planejamento previsto para o próximo ano.
 
-## Capacidade de Produção — detalhes pendentes
+## Capacidade
 
-- Todos os pedidos ocuparão uma vaga igualmente, independentemente da quantidade e da complexidade dos itens?
-- Pedidos cancelados liberarão a vaga do intervalo?
-- O gerente poderá autorizar pedidos acima do limite?
-- Poderão existir configurações diferentes conforme o dia da semana ou uma data específica?
+- Todo pedido ocupa uma vaga igualmente?
+- Cancelado libera vaga?
+- Gerente pode exceder o limite?
+- Configuração varia por dia da semana ou data?
+- Limite será por pedidos, itens/categorias ou ambos?
 
-## Arquivos e Fotos
+## Arquivos
 
-- Onde serão armazenadas as fotos de referência dos pedidos e as imagens dos produtos?
-- Quais formatos, tamanhos e limites de arquivo serão aceitos?
-
-Enquanto essas decisões estiverem pendentes, o assistente não deverá assumir comportamentos definitivos para essas regras.
-
-Quando as respostas forem fornecidas, elas deverão ser documentadas na seção de Regras de Negócio antes da implementação correspondente.
-
----
-
-# Escalabilidade
-
-Sempre considerar que futuramente poderão existir:
-
-- novos módulos
-- novos cargos
-- novas permissões
-- novos relatórios
-- novas regras de negócio
-
-Evitar implementações rígidas.
+- Onde armazenar fotos e imagens?
+- Quais formatos, dimensões, tamanhos e quantidades?
+- Quem pode visualizar, substituir e excluir?
 
 ---
 
-# Diretrizes de Desenvolvimento
+# Diretrizes de Evolução
 
-## Arquitetura
+- Respeitar camadas e padrões atuais.
+- Controllers pequenos, regras em Services, banco em Repositories.
+- Validar contratos com Zod.
+- Criar funções pequenas e evitar duplicação.
+- Não modificar arquivos sem relação com a tarefa.
+- Preservar alterações de outros desenvolvedores.
+- Cobrir regras relevantes com testes proporcionais ao risco.
+- Não transformar protótipo frontend em regra confirmada.
+- Não alterar arquitetura, biblioteca, banco ou regra pendente sem aprovação.
 
-- Respeitar a arquitetura existente.
-- Não alterar padrões do projeto sem aprovação.
-- Não modificar arquivos desnecessariamente.
-- Priorizar soluções escaláveis.
-
----
-
-## Organização do Código
-
-- Utilizar nomes claros.
-- Criar funções pequenas.
-- Evitar duplicação.
-- Evitar funções gigantes.
-- Controllers apenas recebem e respondem.
-- Toda regra de negócio pertence aos Services.
-- Banco apenas pelos Repositories.
+Mudanças arquiteturais devem ser propostas antes, explicando problema, solução, impactos, migração, vantagens, desvantagens e alternativas.
 
 ---
 
-## Qualidade
+# Comandos do Backend
 
-Sempre priorizar:
+Dentro de `server/`:
 
-- legibilidade
-- simplicidade
-- manutenção
-- segurança
-- consistência
-- baixo acoplamento
-- alta coesão
+```bash
+npm run dev
+npm start
+npm test
+npm run banco:testar
+npm run prisma:gerar
+npm run prisma:validar
+```
 
-Evitar "gambiarras".
-
----
-
-## Alterações de Arquitetura
-
-Caso uma melhoria exija alteração estrutural:
-
-Não implementar automaticamente.
-
-Primeiro explicar:
-
-- problema encontrado
-- impactos
-- vantagens
-- desvantagens
-
-Somente implementar após aprovação explícita do usuário.
-
----
-
-## Conflitos
-
-Caso qualquer implementação viole alguma diretriz deste documento:
-
-O assistente deve parar imediatamente.
-
-Nunca decidir sozinho.
-
-Sempre solicitar confirmação do usuário.
-
----
-
-## Dúvidas
-
-Caso exista qualquer dúvida sobre:
-
-- regra de negócio
-- arquitetura
-- modelagem
-- permissões
-- banco de dados
-- impacto de alterações
-
-Perguntar antes de implementar.
-
-Nunca assumir comportamento sem confirmação.
+`banco:testar` consulta a conexão sem alterar dados. Nunca registrar o conteúdo do `.env`.
 
 ---
 
 # Princípio Geral
 
-O objetivo do projeto não é apenas criar um sistema funcional.
-
-O objetivo é desenvolver um backend organizado, profissional, seguro, escalável e fácil de manter.
-
-Sempre que existir mais de uma solução possível, priorizar aquela que melhor preserve a arquitetura, a manutenção do código e a evolução futura do projeto.
+O objetivo é um sistema funcional, profissional, seguro, escalável e fácil de evoluir. Priorizar arquitetura, clareza e manutenção. Quando faltar decisão de negócio, documentar a dúvida e aguardar confirmação.
