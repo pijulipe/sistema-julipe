@@ -26,6 +26,13 @@ SECURITY DEFINER
 SET search_path = public -- Previne Schema Search Path Hijacking
 AS $$
 BEGIN
+  -- Contas criadas pela API administrativa (POST /api/funcionarios) já
+  -- inserem a linha em usuarios com o perfil correto; o gatilho não deve
+  -- sobrescrever isso. Ver documentacao_bd/sql/2026-08-28_fix_trigger_handle_new_user.sql
+  IF (NEW.raw_user_meta_data->>'criado_por_admin')::boolean IS TRUE THEN
+    RETURN NEW;
+  END IF;
+
   INSERT INTO public.usuarios (id_usuario, nome, email, perfil_acesso)
   VALUES (
     NEW.id,
