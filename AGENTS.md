@@ -2,7 +2,7 @@
 
 > Documento principal de arquitetura, desenvolvimento e regras de negócio.
 >
-> Revisado a partir do código em 22/08/2026.
+> Revisado a partir do código em 28/08/2026.
 >
 > Se uma solicitação conflitar com uma decisão confirmada aqui, informar o conflito antes de alterar o projeto. Regras pendentes não podem ser decididas por suposição: solicitar confirmação e documentá-la antes da implementação.
 
@@ -12,7 +12,7 @@
 
 O JULIPE é um sistema web de gerenciamento interno de uma doceria, abrangendo pedidos, clientes, funcionários, produção, estoque, produtos, combos, expedição, relatórios e configurações.
 
-O projeto está em desenvolvimento. Autenticação e clientes já estão integrados entre frontend, backend e banco. Os demais módulos exibidos no frontend são, em sua maioria, protótipos funcionais mantidos apenas no estado do React, sem persistência pela API.
+O projeto está em desenvolvimento. Autenticação, clientes e funcionários já estão integrados entre frontend, backend e banco. Os demais módulos exibidos no frontend são, em sua maioria, protótipos funcionais mantidos apenas no estado do React, sem persistência pela API.
 
 Princípios obrigatórios:
 
@@ -45,7 +45,7 @@ PostgreSQL hospedado no Supabase
 ## Backend
 
 - Node.js 20 ou superior, Express 5 e JavaScript com ES Modules;
-- API REST, Prisma 6, Zod, jsonwebtoken, Helmet, CORS e dotenv;
+- API REST, Prisma 6, Zod, jsonwebtoken, Helmet, CORS, dotenv e `@supabase/supabase-js` (Admin API, somente no backend);
 - testes com `node:test`;
 - hospedagem prevista: Render.
 
@@ -185,19 +185,30 @@ autenticar JWT
 
 Nome e telefone são obrigatórios. Telefone é validado, mas não é único. Vazios opcionais são normalizados para `null`. Excluídos não aparecem nas consultas comuns.
 
+### Funcionários
+
+- `POST /api/funcionarios`: cadastrar (cria a conta no Supabase Auth via Admin API e a linha em `usuarios`, com permissões iniciais `CLIENTES` e `PEDIDOS`);
+- `GET /api/funcionarios`: listar, paginar e filtrar por busca, perfil e atividade;
+- `GET /api/funcionarios/:id`: consultar, com `acessoTotal` e `acoesPermitidas` calculados pelo backend conforme o autor da requisição;
+- `PATCH /api/funcionarios/:id`: atualizar dados cadastrais (nome, situação ativa);
+- `PATCH /api/funcionarios/:id/perfil`: alterar perfil de acesso;
+- `PUT /api/funcionarios/:id/permissoes`: substituir permissões individuais.
+
+Cadastro usa `@supabase/supabase-js` (Admin API) com `SUPABASE_SERVICE_ROLE_KEY`, restrito ao backend. Contas criadas por essa rota são marcadas com `user_metadata.criado_por_admin`, para o gatilho `handle_new_user()` não sobrescrever o perfil escolhido (ver Segurança e Banco de Dados e Prisma). Autorização segue `podeCadastrarPerfil`, `podeEditarPermissoes` e `podeAlterarPerfil` (ver Regras Confirmadas → Usuários e permissões). Não há rota de exclusão de funcionários.
+
 ### Testes existentes
 
 Cobrem autenticação HS256/ES256, audiência, assinatura, expiração, vínculo, endpoint de login, autorização por módulo, recarga/revogação de acesso e regras principais do Service de clientes.
 
 ## Parcial ou protótipo
 
-- pedidos, produtos, combos, funcionários, estoque e configurações usam estado React em memória;
+- pedidos, produtos, combos, estoque e configurações usam estado React em memória;
 - IDs são contadores locais e os dados se perdem ao recarregar;
 - produção, expedição, dashboard e relatórios calculam sobre pedidos em memória;
 - o fluxo visual de status permite avanços e retornos, mas não define a regra final;
 - horários, alertas de capacidade e baixa automática de estoque são provisórios;
-- funcionários e seleção de telas não usam API nem cargos definitivos;
-- não há rotas backend para esses módulos.
+- seleção de telas (`TELAS_ACESSO`, no frontend) ainda não usa API nem cargos definitivos; permissões reais de funcionários usam módulos (`MODULOS_PERMISSAO`), já integrados;
+- não há rotas backend para os módulos ainda em protótipo.
 
 Comportamentos desses protótipos orientam interface e discussão, mas não confirmam regras pendentes.
 
@@ -209,18 +220,17 @@ Nunca confiar no frontend. Validar autenticação, usuário atual, autorização
 
 - Prisma somente em Repositories.
 - Segredos somente em ambiente.
-- Nunca expor `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_JWT_SECRET`, senhas ou tokens.
+- Nunca expor `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, senhas ou tokens.
 - `VITE_SUPABASE_ANON_KEY` é pública e não substitui autorização.
 - Restringir algoritmos JWT e validar emissor, audiência e expiração.
 - Erros `500` não revelam detalhes internos.
 - RLS é defesa adicional, não substituta da API.
 
-Ambiente backend: `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_JWT_SECRET`, `SUPABASE_URL`, `PORTA`, `ORIGENS_PERMITIDAS` e `NODE_ENV`.
+Ambiente backend: `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_JWT_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PORTA`, `ORIGENS_PERMITIDAS` e `NODE_ENV`.
 
 ## Alertas abertos
 
-- várias políticas RLS ainda concedem acesso total a qualquer usuário `authenticated`;
-- `limites_horario` ainda não restringe escrita ao gerente;
+- várias políticas RLS ainda concedem acesso total a qualquer usuário `authenticated`, exceto `limites_horario`, corrigida em 28/08/2026 (leitura liberada à equipe autenticada, escrita restrita a `GERENTE` — ver `documentacao_bd/sql/2026-08-28_rls_limites_horario.sql`);
 - existem políticas redundantes em `usuarios`;
 - dados de negócio devem continuar passando pela API, não diretamente pelo Supabase;
 - as políticas RLS atuais ainda não representam integralmente a matriz de administração de funcionários confirmada para a primeira versão.
@@ -233,7 +243,9 @@ Alterações de RLS ou permissões exigem proposta e confirmação.
 
 `schema.sql` é a referência oficial de criação. `server/prisma/schema.prisma` mapeia o banco. Mudanças estruturais devem mantê-los coerentes, mas não modelar pendências sem aprovação. Check constraints e RLS exigem tratamento adicional em migrações; não presumir que o Prisma sozinho recria todas as garantias.
 
-O banco representa categorias, produtos, combos, clientes, usuários, permissões individuais, limites, entregadores, acessórios, pedidos, itens, configurações, exclusão lógica, índices, RLS e sincronização de novos usuários do Supabase Auth com perfil inicial `ATENDENTE`.
+O banco representa categorias, produtos, combos, clientes, usuários, permissões individuais, limites, entregadores, acessórios, pedidos, itens, configurações, exclusão lógica, índices, RLS e sincronização de novos usuários do Supabase Auth com perfil inicial `ATENDENTE`. Essa sincronização (gatilho `handle_new_user()`) não se aplica a contas criadas pela API administrativa (`POST /api/funcionarios`), identificadas por `user_metadata.criado_por_admin`, que definem o perfil escolhido diretamente — corrigido em 28/08/2026 (ver `documentacao_bd/sql/2026-08-28_fix_trigger_handle_new_user.sql`).
+
+Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam registradas em `documentacao_bd/sql/`, cada arquivo com data e motivo.
 
 ## Características observáveis, ainda sujeitas às regras pendentes
 
@@ -270,6 +282,7 @@ O banco representa categorias, produtos, combos, clientes, usuários, permissõe
 - `GERENTE` possui acesso funcional total, independentemente de permissões individuais.
 - Nenhum usuário pode editar um `GERENTE`, inclusive o próprio gerente.
 - Gerente pode cadastrar funcionários com perfil `ATENDENTE`, `ADMINISTRADOR` ou `GERENTE`.
+- No cadastro, quem cadastra (`GERENTE` ou `ADMINISTRADOR`) define a senha inicial do funcionário.
 - Somente gerente pode alterar o `perfilAcesso` de um funcionário que não seja gerente.
 - Gerente pode consultar e editar as permissões de atendentes e administradores.
 - `ADMINISTRADOR` pode cadastrar somente funcionários com perfil `ATENDENTE`.
@@ -278,6 +291,7 @@ O banco representa categorias, produtos, combos, clientes, usuários, permissõe
 - Atendente não administra funcionários ou permissões.
 - O catálogo inicial de permissões por módulo é: `PEDIDOS`, `PRODUCAO`, `PRODUTO`, `COMBOS`, `RELATORIO`, `CLIENTES`, `ESTOQUE`, `EXPEDICAO` e `FUNCIONARIOS`.
 - Início, novo pedido e configurações não são permissões independentes nesta primeira versão; novo pedido pertence ao módulo `PEDIDOS`.
+- Ao cadastrar um novo funcionário, as permissões individuais concedidas por padrão são `CLIENTES` e `PEDIDOS`.
 - A primeira versão administrará permissões individuais. Cargos configuráveis, herança e exceções negativas permanecem como evolução futura.
 - Gerente e administrador podem consultar o catálogo administrativo de módulos; atendente não possui esse acesso.
 - A listagem administrativa de funcionários inclui, por padrão, ativos e inativos que não estejam excluídos logicamente, podendo filtrar explicitamente pela atividade.
