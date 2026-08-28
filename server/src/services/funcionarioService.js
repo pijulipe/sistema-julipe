@@ -1,9 +1,50 @@
 import { perfilAcessoValido } from "../utils/perfisAcesso.js";
 import { ErroAplicacao } from "../utils/erroAplicacao.js";
 
+const PERMISSOES_INICIAIS_CADASTRO = ["CLIENTES", "PEDIDOS"];
+
 export class FuncionarioService {
   constructor(funcionarioRepository) {
     this.funcionarioRepository = funcionarioRepository;
+  }
+
+  async criar(autor, dados) {
+    if (!this.podeCadastrarPerfil(autor, dados.perfilAcesso)) {
+      throw new ErroAplicacao("Cadastro desse perfil não autorizado.", 403);
+    }
+
+    let idAutenticacaoSupabase;
+    try {
+      idAutenticacaoSupabase = await this.funcionarioRepository.criarContaAutenticacao(
+        dados.email,
+        dados.senha,
+      );
+    } catch (erro) {
+      throw new ErroAplicacao(
+        `Não foi possível criar a conta de acesso: ${erro.message}`,
+        400,
+      );
+    }
+
+    let funcionario;
+    try {
+      funcionario = await this.funcionarioRepository.criar({
+        idAutenticacaoSupabase,
+        nome: dados.nome,
+        email: dados.email,
+        perfilAcesso: dados.perfilAcesso,
+      });
+    } catch (erro) {
+      await this.funcionarioRepository.excluirContaAutenticacao(idAutenticacaoSupabase);
+      throw erro;
+    }
+
+    await this.funcionarioRepository.substituirPermissoes(
+      funcionario.idUsuario,
+      PERMISSOES_INICIAIS_CADASTRO,
+    );
+
+    return { ...funcionario, permissoes: PERMISSOES_INICIAIS_CADASTRO };
   }
 
   podeCadastrarPerfil(autor, perfilDesejado) {
@@ -146,5 +187,27 @@ export class FuncionarioService {
     }
 
     return { idUsuario, perfilAcesso };
+  }
+
+  async atualizarDadosCadastrais(autor, idUsuario, dados) {
+    const funcionario = await this.buscarPorId(idUsuario, autor);
+
+    if (!this.podeEditarPermissoes(autor, funcionario)) {
+      throw new ErroAplicacao(
+        "Alteração de dados cadastrais não autorizada.",
+        403,
+      );
+    }
+
+    const atualizado = await this.funcionarioRepository.atualizarDadosCadastrais(
+      idUsuario,
+      dados,
+    );
+
+    if (!atualizado) {
+      throw new ErroAplicacao("Funcionário não encontrado.", 404);
+    }
+
+    return { idUsuario, ...dados };
   }
 }

@@ -8,6 +8,19 @@ const parametrosIdFuncionario = z
   })
   .strict();
 
+export const criarFuncionarioSchema = z.object({
+  corpo: z
+    .object({
+      nome: z.string().trim().min(2, "Nome deve possuir pelo menos 2 caracteres.").max(255),
+      email: z.string().trim().toLowerCase().email("E-mail inválido.").max(255),
+      senha: z.string().min(8, "Senha deve possuir pelo menos 8 caracteres."),
+      perfilAcesso: z.enum(perfisAcessoValidos),
+    })
+    .strict(),
+  parametros: z.object({}),
+  consulta: z.object({}).strict(),
+});
+
 export const listarFuncionariosSchema = z.object({
   corpo: z.any(),
   parametros: z.object({}),
@@ -53,6 +66,24 @@ export const alterarPerfilFuncionarioSchema = z.object({
       perfilAcesso: z.enum(perfisAcessoValidos),
     })
     .strict(),
+  parametros: parametrosIdFuncionario,
+  consulta: z.object({}).strict(),
+});
+
+const camposDadosCadastraisFuncionario = {
+  nome: z.string().trim().min(2, "Nome deve possuir pelo menos 2 caracteres.").max(255),
+  ativo: z.boolean(),
+};
+
+export const atualizarDadosCadastraisFuncionarioSchema = z.object({
+  corpo: z
+    .object(camposDadosCadastraisFuncionario)
+    .partial()
+    .strict()
+    .refine(
+      (corpo) => Object.keys(corpo).length > 0,
+      "Informe ao menos um campo para alteração.",
+    ),
   parametros: parametrosIdFuncionario,
   consulta: z.object({}).strict(),
 });

@@ -3,6 +3,18 @@ export class FuncionarioController {
     this.funcionarioService = funcionarioService;
   }
 
+  criar = async (requisicao, resposta) => {
+    const funcionario = await this.funcionarioService.criar(
+      requisicao.usuario,
+      requisicao.dadosValidados.corpo,
+    );
+
+    return resposta.status(201).json({
+      mensagem: "Funcionário cadastrado com sucesso.",
+      dados: funcionario,
+    });
+  };
+
   listar = async (requisicao, resposta) => {
     const resultado = await this.funcionarioService.listar(
       requisicao.dadosValidados.consulta,
@@ -42,6 +54,19 @@ export class FuncionarioController {
 
     return resposta.status(200).json({
       mensagem: "Perfil de acesso atualizado com sucesso.",
+      dados: resultado,
+    });
+  };
+
+  atualizarDadosCadastrais = async (requisicao, resposta) => {
+    const resultado = await this.funcionarioService.atualizarDadosCadastrais(
+      requisicao.usuario,
+      requisicao.dadosValidados.parametros.id,
+      requisicao.dadosValidados.corpo,
+    );
+
+    return resposta.status(200).json({
+      mensagem: "Dados atualizados com sucesso.",
       dados: resultado,
     });
   };

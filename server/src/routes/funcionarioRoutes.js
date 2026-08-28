@@ -9,7 +9,9 @@ import { UsuarioRepository } from "../repositories/usuarioRepository.js";
 import { validar } from "../middlewares/validar.js";
 import {
   alterarPerfilFuncionarioSchema,
+  atualizarDadosCadastraisFuncionarioSchema,
   consultarFuncionarioSchema,
+  criarFuncionarioSchema,
   listarFuncionariosSchema,
   substituirPermissoesFuncionarioSchema,
 } from "../validators/funcionarioValidator.js";
@@ -27,6 +29,7 @@ rotas.use(
   autorizarAdministracaoFuncionarios,
 );
 
+rotas.post("/", validar(criarFuncionarioSchema), controller.criar);
 rotas.get("/", validar(listarFuncionariosSchema), controller.listar);
 rotas.get(
   "/:id",
@@ -42,6 +45,11 @@ rotas.patch(
   "/:id/perfil",
   validar(alterarPerfilFuncionarioSchema),
   controller.alterarPerfil,
+);
+rotas.patch(
+  "/:id",
+  validar(atualizarDadosCadastraisFuncionarioSchema),
+  controller.atualizarDadosCadastrais,
 );
 
 export default rotas;

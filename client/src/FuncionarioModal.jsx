@@ -1,99 +1,124 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Check } from "lucide-react";
-import {
-  useFuncionarios,
-  TELAS_ACESSO,
-  PERFIS_ACESSO,
-  perfilTemAcessoGranular,
-} from "./FuncionariosContext";
+import { useFuncionarios, PERFIS_ACESSO } from "./FuncionariosContext";
 
-const todasAsTelas = TELAS_ACESSO.map((t) => t.key);
-
-const emptyForm = {
-  nome: "",
-  email: "",
-  senha: "",
-  perfil: "atendente",
-  telasComAcesso: todasAsTelas,
-  ativo: true,
-};
+const MODULOS_PERMISSAO = [
+  { key: "PEDIDOS", label: "Pedidos" },
+  { key: "PRODUCAO", label: "Produção" },
+  { key: "PRODUTO", label: "Produto" },
+  { key: "COMBOS", label: "Combos" },
+  { key: "RELATORIO", label: "Relatório" },
+  { key: "CLIENTES", label: "Clientes" },
+  { key: "ESTOQUE", label: "Estoque" },
+  { key: "EXPEDICAO", label: "Expedição" },
+  { key: "FUNCIONARIOS", label: "Funcionários" },
+];
 
 /**
- * mode: "edit" | "create"
- * funcionario: obrigatório para "edit"
+ * mode: "create" | "edit"
+ * idUsuario: obrigatório em "edit", ignorado em "create".
+ *
+ * Em "create", permissões e situação ativa não aparecem no formulário —
+ * o backend concede as permissões iniciais e ativa a conta automaticamente.
+ * Edição de dados cadastrais (nome/e-mail) ainda não existe nesta tela.
  */
-export default function FuncionarioModal({ mode, funcionario, onClose, onSave }) {
-  const { buscarFuncionarioPorEmail } = useFuncionarios();
-  const isEdit = mode === "edit";
+export default function FuncionarioModal({ mode, idUsuario, onClose }) {
+  const { buscarFuncionario, atualizarPerfil, atualizarPermissoes, criarFuncionario } =
+    useFuncionarios();
+  const isCreate = mode === "create";
 
-  const [form, setForm] = useState(() =>
-    isEdit && funcionario
-      ? {
-          nome: funcionario.nome || "",
-          email: funcionario.email || "",
-          senha: "",
-          perfil: funcionario.perfil || "atendente",
-          telasComAcesso: funcionario.telasComAcesso?.length
-            ? funcionario.telasComAcesso
-            : todasAsTelas,
-          ativo: funcionario.ativo !== false,
-        }
-      : emptyForm
-  );
-  const [error, setError] = useState("");
+  const [funcionario, setFuncionario] = useState(null);
+  const [carregando, setCarregando] = useState(!isCreate);
+  const [erro, setErro] = useState("");
 
-  const handleChange = (field) => (e) => {
-    setError("");
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
-  };
+  const [perfilSelecionado, setPerfilSelecionado] = useState("");
+  const [permissoesSelecionadas, setPermissoesSelecionadas] = useState([]);
 
-  const handleSelecionarPerfil = (perfil) => {
-    setForm((prev) => ({ ...prev, perfil }));
-  };
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
+  const [salvandoPermissoes, setSalvandoPermissoes] = useState(false);
 
-  const handleAlternarTela = (key) => {
-    setForm((prev) => ({
-      ...prev,
-      telasComAcesso: prev.telasComAcesso.includes(key)
-        ? prev.telasComAcesso.filter((k) => k !== key)
-        : [...prev.telasComAcesso, key],
-    }));
-  };
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [perfilNovoFuncionario, setPerfilNovoFuncionario] = useState("ATENDENTE");
+  const [criando, setCriando] = useState(false);
 
-  // Só perfis com acesso granular (ex: Atendente) escolhem telas individuais —
-  // Administrador e Gerente têm acesso total por padrão.
-  const mostrarTelas = perfilTemAcessoGranular(form.perfil);
+  useEffect(() => {
+    if (isCreate) return;
 
-  const canSubmit =
-    form.nome.trim() && form.email.trim() && (isEdit || form.senha.trim());
+    let cancelado = false;
 
-  const handleSubmit = () => {
-    if (!canSubmit) return;
-
-    const duplicate = buscarFuncionarioPorEmail(
-      form.email,
-      isEdit ? funcionario?.id : undefined
-    );
-    if (duplicate) {
-      setError(
-        `Já existe um funcionário cadastrado com esse e-mail: ${duplicate.nome}`
-      );
-      return;
+    async function carregar() {
+      setCarregando(true);
+      setErro("");
+      try {
+        const resultado = await buscarFuncionario(idUsuario);
+        if (cancelado) return;
+        setFuncionario(resultado);
+        setPerfilSelecionado(resultado.perfilAcesso);
+        setPermissoesSelecionadas(resultado.permissoes || []);
+      } catch (erroCarregar) {
+        if (!cancelado) setErro(erroCarregar.message);
+      } finally {
+        if (!cancelado) setCarregando(false);
+      }
     }
 
-    const dados = {
-      nome: form.nome.trim(),
-      email: form.email.trim(),
-      perfil: form.perfil,
-      telasComAcesso: mostrarTelas ? form.telasComAcesso : todasAsTelas,
-      ativo: form.ativo,
+    carregar();
+    return () => {
+      cancelado = true;
     };
-    // Só envia a senha se foi digitada — em edição, campo vazio = mantém a atual.
-    if (!isEdit || form.senha.trim()) {
-      dados.senha = form.senha.trim();
-    }
+  }, [idUsuario, isCreate]);
 
-    onSave(dados);
+  const handleAlternarPermissao = (chave) => {
+    setPermissoesSelecionadas((prev) =>
+      prev.includes(chave) ? prev.filter((c) => c !== chave) : [...prev, chave]
+    );
+  };
+
+  const handleSalvarPerfil = async () => {
+    setErro("");
+    setSalvandoPerfil(true);
+    try {
+      await atualizarPerfil(idUsuario, perfilSelecionado);
+    } catch (erroSalvar) {
+      setErro(erroSalvar.message);
+    } finally {
+      setSalvandoPerfil(false);
+    }
+  };
+
+  const handleSalvarPermissoes = async () => {
+    setErro("");
+    setSalvandoPermissoes(true);
+    try {
+      await atualizarPermissoes(idUsuario, permissoesSelecionadas);
+    } catch (erroSalvar) {
+      setErro(erroSalvar.message);
+    } finally {
+      setSalvandoPermissoes(false);
+    }
+  };
+
+  const canSubmitCriar = nome.trim() && email.trim() && senha.trim();
+
+  const handleCriar = async () => {
+    if (!canSubmitCriar) return;
+    setErro("");
+    setCriando(true);
+    try {
+      await criarFuncionario({
+        nome: nome.trim(),
+        email: email.trim(),
+        senha,
+        perfilAcesso: perfilNovoFuncionario,
+      });
+      onClose();
+    } catch (erroCriar) {
+      setErro(erroCriar.message);
+    } finally {
+      setCriando(false);
+    }
   };
 
   return (
@@ -107,123 +132,164 @@ export default function FuncionarioModal({ mode, funcionario, onClose, onSave })
       >
         <div className="px-6 pt-6">
           <h2 className="text-xl font-bold text-slate-900">
-            {isEdit ? "Editar Funcionário" : "Novo Funcionário"}
+            {isCreate ? "Novo Funcionário" : "Editar Funcionário"}
           </h2>
         </div>
 
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-6 py-5">
-          {error && (
+        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5">
+          {erro && (
             <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
-              {error}
+              {erro}
             </div>
           )}
 
-          <Field label="Nome" required>
-            <input
-              value={form.nome}
-              onChange={handleChange("nome")}
-              placeholder="Nome do funcionário"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </Field>
+          {isCreate ? (
+            <>
+              <Field label="Nome" required>
+                <input
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Nome do funcionário"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </Field>
 
-          <Field label="E-mail" required>
-            <input
-              type="email"
-              value={form.email}
-              onChange={handleChange("email")}
-              placeholder="email@exemplo.com"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </Field>
+              <Field label="E-mail" required>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@exemplo.com"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </Field>
 
-          <Field
-            label={isEdit ? "Senha (deixe em branco para manter)" : "Senha"}
-            required={!isEdit}
-          >
-            <input
-              type="password"
-              value={form.senha}
-              onChange={handleChange("senha")}
-              placeholder="••••••••"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </Field>
+              <Field label="Senha" required>
+                <input
+                  type="password"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </Field>
 
-          <Field label="Perfil de Acesso" required>
-            <div className="grid grid-cols-3 gap-3">
-              {PERFIS_ACESSO.map((p) => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => handleSelecionarPerfil(p.key)}
-                  className={`rounded-xl py-2.5 text-sm font-semibold transition-colors ${
-                    form.perfil === p.key
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          {mostrarTelas && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Telas com Acesso
-              </label>
-              <p className="mb-2 text-xs text-slate-400">
-                Selecione as telas que este funcionário poderá acessar.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {TELAS_ACESSO.map((t) => {
-                  const marcado = form.telasComAcesso.includes(t.key);
-                  return (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Perfil de Acesso
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {PERFIS_ACESSO.map((p) => (
                     <button
-                      key={t.key}
+                      key={p.key}
                       type="button"
-                      onClick={() => handleAlternarTela(t.key)}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
-                        marcado
-                          ? "border-blue-200 bg-blue-50 text-blue-700"
-                          : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                      onClick={() => setPerfilNovoFuncionario(p.key)}
+                      className={`rounded-xl py-2.5 text-sm font-semibold transition-colors ${
+                        perfilNovoFuncionario === p.key
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                       }`}
                     >
-                      <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                          marcado
-                            ? "border-blue-500 bg-blue-500"
-                            : "border-slate-300 bg-white"
-                        }`}
-                      >
-                        {marcado && (
-                          <Check size={11} className="text-white" strokeWidth={3} />
-                        )}
-                      </span>
-                      {t.label}
+                      {p.label}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            </>
+          ) : carregando ? (
+            <p className="text-sm text-slate-400">Carregando funcionário...</p>
+          ) : funcionario ? (
+            <>
+              <div>
+                <div className="text-sm font-semibold text-slate-900">{funcionario.nome}</div>
+                <div className="text-xs text-slate-400">{funcionario.email}</div>
+              </div>
 
-          <button
-            type="button"
-            onClick={() => setForm((prev) => ({ ...prev, ativo: !prev.ativo }))}
-            className="flex items-center gap-2 text-sm font-medium text-slate-700"
-          >
-            <span
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                form.ativo ? "border-blue-500 bg-blue-500" : "border-slate-300 bg-white"
-              }`}
-            >
-              {form.ativo && <Check size={11} className="text-white" strokeWidth={3} />}
-            </span>
-            Conta ativa
-          </button>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Perfil de Acesso
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {PERFIS_ACESSO.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      disabled={!funcionario.acoesPermitidas.alterarPerfil}
+                      onClick={() => setPerfilSelecionado(p.key)}
+                      className={`rounded-xl py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        perfilSelecionado === p.key
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                {funcionario.acoesPermitidas.alterarPerfil && (
+                  <button
+                    type="button"
+                    onClick={handleSalvarPerfil}
+                    disabled={salvandoPerfil || perfilSelecionado === funcionario.perfilAcesso}
+                    className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {salvandoPerfil ? "Salvando..." : "Salvar perfil"}
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Permissões
+                </label>
+                {funcionario.acessoTotal ? (
+                  <p className="text-xs text-slate-400">
+                    Este funcionário tem acesso total ao sistema e não usa permissões individuais.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      {MODULOS_PERMISSAO.map((m) => {
+                        const marcado = permissoesSelecionadas.includes(m.key);
+                        return (
+                          <button
+                            key={m.key}
+                            type="button"
+                            disabled={!funcionario.acoesPermitidas.editarPermissoes}
+                            onClick={() => handleAlternarPermissao(m.key)}
+                            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                              marcado
+                                ? "border-blue-200 bg-blue-50 text-blue-700"
+                                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                            }`}
+                          >
+                            <span
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                                marcado ? "border-blue-500 bg-blue-500" : "border-slate-300 bg-white"
+                              }`}
+                            >
+                              {marcado && <Check size={11} className="text-white" strokeWidth={3} />}
+                            </span>
+                            {m.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {funcionario.acoesPermitidas.editarPermissoes && (
+                      <button
+                        type="button"
+                        onClick={handleSalvarPermissoes}
+                        disabled={salvandoPermissoes}
+                        className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {salvandoPermissoes ? "Salvando..." : "Salvar permissões"}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          ) : null}
         </div>
 
         <div className="flex gap-3 px-6 pb-6 pt-2">
@@ -231,15 +297,17 @@ export default function FuncionarioModal({ mode, funcionario, onClose, onSave })
             onClick={onClose}
             className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
           >
-            Cancelar
+            {isCreate ? "Cancelar" : "Fechar"}
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isEdit ? "Salvar" : "Criar"}
-          </button>
+          {isCreate && (
+            <button
+              onClick={handleCriar}
+              disabled={!canSubmitCriar || criando}
+              className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {criando ? "Criando..." : "Criar"}
+            </button>
+          )}
         </div>
       </div>
     </div>

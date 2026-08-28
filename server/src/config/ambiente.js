@@ -7,6 +7,7 @@ const esquemaAmbiente = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET deve possuir pelo menos 32 caracteres."),
   SUPABASE_JWT_SECRET: z.string().min(32, "SUPABASE_JWT_SECRET é obrigatório e deve possuir pelo menos 32 caracteres."),
   SUPABASE_URL: z.string().url("SUPABASE_URL deve ser uma URL válida."),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(32, "SUPABASE_SERVICE_ROLE_KEY é obrigatória e deve possuir pelo menos 32 caracteres."),
   PORTA: z.coerce.number().int().positive().default(3000),
   ORIGENS_PERMITIDAS: z.string().default("http://localhost:5173"),
 });

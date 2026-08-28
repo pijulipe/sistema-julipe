@@ -1,7 +1,45 @@
 import { prisma } from "../database/prisma.js";
+import { supabaseAdmin } from "../database/supabaseAdmin.js";
 import { moduloValido, chavesModulos } from "../utils/modulos.js";
 
 export class FuncionarioRepository {
+  async criarContaAutenticacao(email, senha) {
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: senha,
+      email_confirm: true,
+      user_metadata: { criado_por_admin: true },
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data.user.id;
+  }
+
+  async excluirContaAutenticacao(idAutenticacaoSupabase) {
+    await supabaseAdmin.auth.admin.deleteUser(idAutenticacaoSupabase);
+  }
+
+  async criar(dados) {
+    return prisma.usuario.create({
+      data: {
+        idAutenticacaoSupabase: dados.idAutenticacaoSupabase,
+        nome: dados.nome,
+        email: dados.email,
+        perfilAcesso: dados.perfilAcesso,
+      },
+      select: {
+        idUsuario: true,
+        nome: true,
+        email: true,
+        perfilAcesso: true,
+        ativo: true,
+      },
+    });
+  }
+
   async buscarPorId(idUsuario) {
     const funcionario = await prisma.usuario.findFirst({
       where: {
@@ -95,6 +133,18 @@ export class FuncionarioRepository {
       data: {
         perfilAcesso,
       },
+    });
+    return resultado.count > 0;
+  }
+
+  async atualizarDadosCadastrais(idUsuario, dados) {
+    const resultado = await prisma.usuario.updateMany({
+      where: {
+        idUsuario,
+        itemAtivo: true,
+        deletadoEm: null,
+      },
+      data: dados,
     });
     return resultado.count > 0;
   }

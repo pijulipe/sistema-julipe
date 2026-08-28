@@ -1,21 +1,36 @@
 import React, { createContext, useContext, useState } from "react";
-import { normalizarTexto } from "./formatadores";
+import { useEffect, useRef } from "react";
+import {
+  listarFuncionarios,
+  buscarFuncionarioPorId,
+  substituirPermissoes,
+  alterarPerfil,
+  criarFuncionario as criarFuncionarioApi,
+} from "./services/funcionarioService.js";
+import { useAutenticacao } from "./AutenticacaoContext.jsx";
 
 /* ---------------------------------------------------------
    Contexto global de funcionários (usuários do sistema).
    Qualquer tela que precisar ler ou alterar funcionários usa o
    hook useFuncionarios() em vez de receber tudo via props.
 
-   Cada funcionário: { id, nome, email, senha, perfil, telasComAcesso, ativo }
-   - perfil: "administrador" | "gerente" | "atendente"
-   - telasComAcesso: [chaveTela, ...] — só é relevante (e editável) para
-     perfis com acesso granular (ver perfilTemAcessoGranular). Para os
-     demais perfis, o funcionário tem acesso a todas as telas.
+   Os dados vêm da API (server/src/routes/funcionarioRoutes.js),
+   não são mais mantidos só em memória.
+
+   Funcionário (na listagem): { idUsuario, nome, email, perfilAcesso, ativo }
+   Funcionário (na consulta por id): inclui também { permissoes, acessoTotal, acoesPermitidas }
+
+   - perfilAcesso: "ADMINISTRADOR" | "GERENTE" | "ATENDENTE" (mesmos valores da API)
+   - acessoTotal: já vem calculado pelo backend (true quando perfilAcesso é GERENTE) —
+     o frontend não deve recalcular essa regra.
+   - acoesPermitidas: { editarPermissoes, alterarPerfil } — indica o que o usuário
+     autenticado pode fazer com aquele funcionário específico.
 --------------------------------------------------------- */
+
 
 const FuncionariosContext = createContext(null);
 
-let idCounter = 1;
+
 
 // Chaves alinhadas com o `view` de App.jsx, para que a lista de telas
 // aqui corresponda exatamente às telas navegáveis do sistema.
@@ -33,66 +48,155 @@ export const TELAS_ACESSO = [
 ];
 
 export const PERFIS_ACESSO = [
-  { key: "administrador", label: "Administrador" },
-  { key: "gerente", label: "Gerente" },
-  { key: "atendente", label: "Atendente" },
+  { key: "ADMINISTRADOR", label: "Administrador" },
+  { key: "GERENTE", label: "Gerente" },
+  { key: "ATENDENTE", label: "Atendente" },
 ];
 
-/** Perfis com acesso total ao sistema por padrão — não usam a lista granular de telas. */
-const PERFIS_ACESSO_TOTAL = ["administrador"];
 
-/** Se true, este perfil pode ter telas individuais liberadas/bloqueadas. */
-export function perfilTemAcessoGranular(perfil) {
-  return !PERFIS_ACESSO_TOTAL.includes(perfil);
-}
 
 export function FuncionariosProvider({ children }) {
   const [funcionarios, setFuncionarios] = useState([]);
+  const [carregandoFuncionarios, setCarregandoFuncionarios] = useState(true);
+  const [erroFuncionarios, setErroFuncionarios] = useState("");
+  const [paginacao, setPaginacao] = useState({
+    pagina: 1,
+    limite: 20,
+    total: 0,
+    totalPaginas: 0,
+  });
 
-  /** Retorna o funcionário com o mesmo email (ignorando maiúsculas/espaços), se existir. */
-  const buscarFuncionarioPorEmail = (email, excludeId) => {
-    const target = normalizarTexto(email);
-    if (!target) return null;
-    return (
-      funcionarios.find(
-        (f) => normalizarTexto(f.email) === target && f.id !== excludeId
-      ) || null
-    );
+  const { tokenInterno, fazerLogout } = useAutenticacao();
+
+  async function carregarFuncionarios({
+    busca = "",
+    perfilAcesso,
+    ativo,
+    pagina = 1,
+    limite = 20,
+  } = {}) {
+    if (!tokenInterno) {
+      setFuncionarios([]);
+      setCarregandoFuncionarios(false);
+      return;
+    }
+    setCarregandoFuncionarios(true);
+    setErroFuncionarios("");
+    try {
+      const resultado = await listarFuncionarios(tokenInterno, {
+        busca,
+        perfilAcesso,
+        ativo,
+        pagina,
+        limite,
+      });
+      setFuncionarios(resultado.dados);
+      setPaginacao(resultado.paginacao);
+    } catch (erro) {
+      setErroFuncionarios(erro.message);
+      if (erro.status === 401) {
+        await fazerLogout();
+      }
+    } finally {
+      setCarregandoFuncionarios(false);
+    }
+
+  }
+
+  const carregarFuncionariosRef = useRef(carregarFuncionarios);
+
+  useEffect(() => {
+    carregarFuncionariosRef.current = carregarFuncionarios;
+  });
+
+  useEffect(() => {
+    if (tokenInterno) {
+      carregarFuncionariosRef.current({ busca: "", pagina: 1, limite: 20 });
+    } else {
+      setFuncionarios([]);
+      setCarregandoFuncionarios(false);
+    }
+  }, [tokenInterno]);
+
+
+  async function buscarFuncionario(idUsuario) {
+    const resultado = await buscarFuncionarioPorId(idUsuario, tokenInterno)
+
+    return resultado
+  }
+
+  const atualizarPermissoes = async (idUsuario, modulos) => {
+    try {
+      setErroFuncionarios("");
+      const resultado = await substituirPermissoes(idUsuario, modulos, tokenInterno);
+      await carregarFuncionarios({
+        busca: "",
+        pagina: paginacao.pagina,
+        limite: paginacao.limite,
+      });
+      return resultado;
+    } catch (erro) {
+      setErroFuncionarios(erro.message);
+      if (erro.status === 401) {
+        await fazerLogout();
+      }
+      throw erro;
+    }
   };
 
-  /**
-   * Cria um novo funcionário.
-   * data: { nome, email, senha, perfil, telasComAcesso, ativo }
-   */
-  const adicionarFuncionario = (data) => {
-    const novoFuncionario = { id: idCounter++, ...data };
-    setFuncionarios((prev) => [...prev, novoFuncionario]);
-    return novoFuncionario;
+  const criarFuncionario = async (dados) => {
+    try {
+      setErroFuncionarios("");
+      const resultado = await criarFuncionarioApi(dados, tokenInterno);
+      await carregarFuncionarios({
+        busca: "",
+        pagina: paginacao.pagina,
+        limite: paginacao.limite,
+      });
+      return resultado;
+    } catch (erro) {
+      setErroFuncionarios(erro.message);
+      if (erro.status === 401) {
+        await fazerLogout();
+      }
+      throw erro;
+    }
   };
 
-  /**
-   * Atualiza campos de um funcionário existente.
-   * Se `data.senha` não vier (ou vier vazio), a senha atual é mantida —
-   * quem chama (FuncionarioModal) já cuida de omitir o campo nesse caso.
-   */
-  const atualizarFuncionario = (id, data) => {
-    setFuncionarios((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, ...data } : f))
-    );
+  const atualizarPerfil = async (idUsuario, perfilAcesso) => {
+    try {
+      setErroFuncionarios("");
+      const resultado = await alterarPerfil(idUsuario, perfilAcesso, tokenInterno);
+      await carregarFuncionarios({
+        busca: "",
+        pagina: paginacao.pagina,
+        limite: paginacao.limite,
+      });
+      return resultado;
+    } catch (erro) {
+      setErroFuncionarios(erro.message);
+      if (erro.status === 401) {
+        await fazerLogout();
+      }
+      throw erro;
+    }
   };
 
-  const removerFuncionario = (id) => {
-    setFuncionarios((prev) => prev.filter((f) => f.id !== id));
-  };
+
+
 
   return (
     <FuncionariosContext.Provider
       value={{
         funcionarios,
-        adicionarFuncionario,
-        atualizarFuncionario,
-        removerFuncionario,
-        buscarFuncionarioPorEmail,
+        carregandoFuncionarios,
+        erroFuncionarios,
+        paginacao,
+        carregarFuncionarios,
+        buscarFuncionario,
+        criarFuncionario,
+        atualizarPermissoes,
+        atualizarPerfil,
       }}
     >
       {children}
