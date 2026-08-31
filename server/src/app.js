@@ -7,6 +7,8 @@ import { tratarErros, tratarRotaNaoEncontrada } from "./middlewares/tratarErros.
 import autenticacaoRoutes from "./routes/autenticacaoRoutes.js";
 import funcionarioRoutes from "./routes/funcionarioRoutes.js";
 import permissaoRoutes from "./routes/permissaoRoutes.js";
+import produtoRoutes from "./routes/produtoRoutes.js";
+import categoriaRoutes from "./routes/categoriaRoutes.js";
 
 export const app = express();
 
@@ -19,5 +21,7 @@ app.use("/api/autenticacao", autenticacaoRoutes);
 app.use("/api/clientes", clienteRoutes);
 app.use("/api/funcionarios", funcionarioRoutes);
 app.use("/api/permissoes", permissaoRoutes);
+app.use("/api/produtos", produtoRoutes);
+app.use("/api/categorias-produtos", categoriaRoutes);
 app.use(tratarRotaNaoEncontrada);
 app.use(tratarErros);

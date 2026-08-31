@@ -12,7 +12,7 @@
 
 O JULIPE é um sistema web de gerenciamento interno de uma doceria, abrangendo pedidos, clientes, funcionários, produção, estoque, produtos, combos, expedição, relatórios e configurações.
 
-O projeto está em desenvolvimento. Autenticação, clientes e funcionários já estão integrados entre frontend, backend e banco. Os demais módulos exibidos no frontend são, em sua maioria, protótipos funcionais mantidos apenas no estado do React, sem persistência pela API.
+O projeto está em desenvolvimento. Autenticação, clientes, funcionários e produtos já estão integrados entre frontend, backend e banco. Os demais módulos exibidos no frontend são, em sua maioria, protótipos funcionais mantidos apenas no estado do React, sem persistência pela API.
 
 Princípios obrigatórios:
 
@@ -196,13 +196,21 @@ Nome e telefone são obrigatórios. Telefone é validado, mas não é único. Va
 
 Cadastro usa `@supabase/supabase-js` (Admin API) com `SUPABASE_SERVICE_ROLE_KEY`, restrito ao backend. Contas criadas por essa rota são marcadas com `user_metadata.criado_por_admin`, para o gatilho `handle_new_user()` não sobrescrever o perfil escolhido (ver Segurança e Banco de Dados e Prisma). Autorização segue `podeCadastrarPerfil`, `podeEditarPermissoes` e `podeAlterarPerfil` (ver Regras Confirmadas → Usuários e permissões). Não há rota de exclusão de funcionários.
 
+### Produtos e categorias
+
+- Produtos possuem CRUD completo em `/api/produtos`, filtros, paginação, ativação, inativação e exclusão lógica.
+- Categorias fixas ativas são consultadas em `/api/categorias-produtos` e validadas no backend.
+- O módulo é protegido por recarga de acesso atual e permissão `PRODUTO`.
+- Fotos de Bolos e Doces usam upload direto autorizado pelo backend para o bucket privado `imagens-produtos`; o banco armazena apenas o caminho e a API fornece URLs temporárias de leitura.
+- O frontend de Produtos usa a API real, incluindo formulário, filtros, paginação e upload, substituição e remoção da foto.
+
 ### Testes existentes
 
 Cobrem autenticação HS256/ES256, audiência, assinatura, expiração, vínculo, endpoint de login, autorização por módulo, recarga/revogação de acesso e regras principais do Service de clientes.
 
 ## Parcial ou protótipo
 
-- pedidos, produtos, combos, estoque e configurações usam estado React em memória;
+- pedidos, combos, estoque e configurações usam estado React em memória;
 - IDs são contadores locais e os dados se perdem ao recarregar;
 - produção, expedição, dashboard e relatórios calculam sobre pedidos em memória;
 - o fluxo visual de status permite avanços e retornos, mas não define a regra final;
@@ -275,6 +283,26 @@ Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam re
 - Funcionário precisa do módulo `CLIENTES`.
 - Telefone é obrigatório e pode repetir.
 - Exclusão é lógica.
+
+## Produtos e categorias
+
+- As categorias são fixas nesta primeira versão: `Bolos`, `Doces`, `Salgados`, `Bebidas`, `Congelados` e `Festas`.
+- Não haverá administração de categorias; elas são persistidas no banco e consultadas pela API.
+- Cada categoria possui uma quantidade padrão por pacote. `Salgados` usa 25 unidades; as demais usam 1, salvo valor confirmado já persistido no banco.
+- O produto pode sobrescrever o padrão da categoria. O campo “unidades por pacote” do frontend corresponde a `multiplo_minimo` e determina os múltiplos permitidos para venda.
+- As unidades de medida permitidas são `Unidade`, `Kg`, `Litro`, `Pacote` e `Fatia`.
+- O preço não pode ser negativo, o múltiplo mínimo deve ser inteiro maior que zero e o tempo de preparo, em minutos, deve ser inteiro maior ou igual a zero.
+- Cada produto pode ter no máximo uma foto, e somente produtos das categorias `Bolos` e `Doces` aceitam foto.
+- Fotos de produto aceitam PNG, JPG/JPEG e WebP, com tamanho máximo de 5 MB.
+- As fotos são armazenadas no bucket privado `imagens-produtos` do Supabase Storage. O PostgreSQL armazena somente o caminho controlado do objeto, nunca binário ou Base64.
+- A permissão de imagem é determinada exclusivamente pela categoria. A coluna legada `produtos.permite_imagem` permanece apenas para compatibilidade e não é fonte de regra de negócio.
+- Produtos podem ser ativados e inativados e usam exclusão lógica; excluídos não aparecem nas consultas comuns.
+- O módulo exige a permissão `PRODUTO`. `GERENTE` possui acesso funcional total e os demais perfis precisam da permissão individual ativa.
+- O backend recarrega perfil, atividade e permissões atuais do banco antes de autorizar cada requisição, de modo que concessões e revogações valem na requisição seguinte.
+
+## Fotos de referência dos pedidos
+
+- Futuramente, cada item do pedido poderá possuir uma foto de referência, limitada a no máximo 10 itens com foto por pedido. Essa regra é independente da foto cadastral do produto e ainda não deve ser implementada nas tabelas ou fluxos de pedidos.
 
 ## Usuários e permissões
 
@@ -367,12 +395,6 @@ Questões exclusivas de estoque podem aguardar o planejamento previsto para o pr
 - Gerente pode exceder o limite?
 - Configuração varia por dia da semana ou data?
 - Limite será por pedidos, itens/categorias ou ambos?
-
-## Arquivos
-
-- Onde armazenar fotos e imagens?
-- Quais formatos, dimensões, tamanhos e quantidades?
-- Quem pode visualizar, substituir e excluir?
 
 ---
 
