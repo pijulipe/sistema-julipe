@@ -20,8 +20,9 @@ const emptyForm = {
  * mode: "view" | "edit" | "create"
  * combo: obrigatório para "view" e "edit"
  */
-export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit }) {
+export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit, salvando = false, erro = "" }) {
   const { produtos } = useProdutos();
+  const produtosValidos = produtos.filter((produto) => produto.ativo);
   const isForm = mode === "edit" || mode === "create";
 
   const [form, setForm] = useState(() =>
@@ -44,14 +45,21 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
   const [autoPrice, setAutoPrice] = useState(mode !== "edit");
 
   const nomeProduto = (id) =>
-    produtos.find((p) => p.id === id)?.nome || "Produto removido";
+    produtos.find((p) => p.id === id)?.nome
+      || combo?.itens.find((item) => item.idProduto === id)?.produto?.nome
+      || "Produto indisponível";
 
-  const precoProduto = (id) => produtos.find((p) => p.id === id)?.preco || 0;
+  const precoProduto = (id) => produtos.find((p) => p.id === id)?.precoUnitario || 0;
+
+  const multiploProduto = (id) => produtos.find((p) => p.id === id)?.multiploMinimo || 1;
 
   const itemsSum = form.itens.reduce(
-    (sum, item) => sum + precoProduto(item.idProduto) * item.quantidade,
+    (sum, item) => sum
+      + precoProduto(item.idProduto) * (item.quantidade / multiploProduto(item.idProduto)),
     0
   );
+  const quantidadesValidas = form.itens.every((item) =>
+    item.quantidade > 0 && item.quantidade % multiploProduto(item.idProduto) === 0);
 
   useEffect(() => {
     if (!autoPrice) return;
@@ -73,7 +81,8 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
   const handleAdicionarItem = () => {
     if (!idProdutoSelecionado) return;
     const id = Number(idProdutoSelecionado);
-    const quantidade = Math.max(1, Number(pickerQty) || 1);
+    const multiplo = multiploProduto(id);
+    const quantidade = Math.max(multiplo, Number(pickerQty) || multiplo);
 
     setForm((prev) => {
       const existing = prev.itens.find((i) => i.idProduto === id);
@@ -96,7 +105,7 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
       ...prev,
       itens: prev.itens.map((i) =>
         i.idProduto === idProduto
-          ? { ...i, quantidade: Math.max(1, Number(quantidade) || 1) }
+          ? { ...i, quantidade: Math.max(multiploProduto(idProduto), Number(quantidade) || multiploProduto(idProduto)) }
           : i
       ),
     }));
@@ -115,8 +124,8 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
       nome: form.nome.trim(),
       descricao: form.descricao.trim(),
       preco: Number(form.preco) || 0,
-      itens: form.itens,
-      status: form.ativo ? "Ativo" : "Inativo",
+      itens: form.itens.map(({ idProduto, quantidade }) => ({ idProduto, quantidade })),
+      ativo: form.ativo,
     });
   };
 
@@ -279,7 +288,7 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
                     className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Selecionar produto...</option>
-                    {produtos.map((p) => (
+                    {produtosValidos.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.nome}
                       </option>
@@ -287,7 +296,8 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
                   </select>
                   <input
                     type="number"
-                    min="1"
+                    min={idProdutoSelecionado ? multiploProduto(Number(idProdutoSelecionado)) : 1}
+                    step={idProdutoSelecionado ? multiploProduto(Number(idProdutoSelecionado)) : 1}
                     value={pickerQty}
                     onChange={(e) => setPickerQty(e.target.value)}
                     className="w-16 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-center text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -317,7 +327,8 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
-                          min="1"
+                          min={multiploProduto(item.idProduto)}
+                          step={multiploProduto(item.idProduto)}
                           value={item.quantidade}
                           onChange={(e) =>
                             handleItemQtyChange(item.idProduto, e.target.value)
@@ -335,6 +346,9 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
                     </div>
                   ))}
                 </div>
+              )}
+              {!quantidadesValidas && (
+                <p className="text-xs text-red-600">A quantidade deve respeitar o múltiplo mínimo indicado pelo produto.</p>
               )}
 
               <button
@@ -359,12 +373,13 @@ export default function ComboModal({ mode, combo, onClose, onSave, onRequestEdit
               >
                 Cancelar
               </button>
+              {erro && <p className="px-6 pb-2 text-sm text-red-600">{erro}</p>}
               <button
                 onClick={handleSubmit}
-                disabled={!form.nome.trim() || form.itens.length === 0}
+                disabled={salvando || !form.nome.trim() || form.itens.length === 0 || !quantidadesValidas}
                 className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {mode === "edit" ? "Salvar" : "Criar"}
+                {salvando ? "Salvando..." : mode === "edit" ? "Salvar" : "Criar"}
               </button>
             </div>
           </>

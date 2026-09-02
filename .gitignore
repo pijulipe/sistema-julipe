@@ -9,5 +9,6 @@ dist/
 build/
 
 AGENTS.md
-schema.sql
 BACKEND.md
+
+schema.sql

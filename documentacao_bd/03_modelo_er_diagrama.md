@@ -56,6 +56,7 @@ erDiagram
         int id_combo PK
         string nome
         decimal preco
+        int versao
         boolean ativo
     }
 
@@ -150,3 +151,7 @@ erDiagram
    - Impede a exclusão física de um produto do catálogo se ele já tiver sido vendido em algum pedido. Para tirar o produto de circulação, utiliza-se a exclusão lógica (*Soft Delete*) via `deletado_em` ou desativação via `ativo = FALSE`.
 4. **Exclusividade Mutua de Itens (`CHECK`)**:
    - Em `propriedades_pedido`, garante-se que cada linha pertença **exclusivamente a um Produto individual ou a um Combo**, prevenindo inconsistências de dados na comanda da cozinha.
+5. **Composição de combos (`UNIQUE` e `ON DELETE RESTRICT`)**:
+   - O par (`id_combo`, `id_produto`) é único, impedindo o mesmo produto em duas linhas do combo. Produtos e combos não são removidos fisicamente enquanto houver composição ou referência histórica; o fluxo usa exclusão lógica.
+6. **Nome vigente de combo (`UNIQUE INDEX` parcial e funcional)**:
+   - `LOWER(TRIM(nome))` é único somente onde `item_ativo = TRUE` e `deletado_em IS NULL`, garantindo concorrência segura e permitindo reutilização após exclusão lógica.

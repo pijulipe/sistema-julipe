@@ -75,6 +75,7 @@ model combos {
   nome                String                @db.VarChar(255)
   descricao           String?
   preco               Decimal               @db.Decimal(10, 2)
+  versao              Int                   @default(1)
   ativo               Boolean               @default(true)
   item_ativo          Boolean               @default(true)
   deletado_em         DateTime?             @db.Timestamptz(6)
@@ -111,9 +112,10 @@ model itens_combo {
   id_combo      Int
   id_produto    Int
   quantidade    Decimal  @default(1.000) @db.Decimal(10, 3)
-  combos        combos   @relation(fields: [id_combo], references: [id_combo], onDelete: Cascade, onUpdate: NoAction, map: "fk_itens_combo_combos")
-  produtos      produtos @relation(fields: [id_produto], references: [id_produto], onUpdate: NoAction, map: "fk_itens_combo_produtos")
+  combos        combos   @relation(fields: [id_combo], references: [id_combo], onDelete: Restrict, onUpdate: NoAction, map: "fk_itens_combo_combos")
+  produtos      produtos @relation(fields: [id_produto], references: [id_produto], onDelete: Restrict, onUpdate: NoAction, map: "fk_itens_combo_produtos")
 
+  @@unique([id_combo, id_produto], map: "uq_itens_combo_combo_produto")
   @@index([id_combo], map: "idx_itens_combo_combo")
   @@index([id_produto], map: "idx_itens_combo_produto")
 }

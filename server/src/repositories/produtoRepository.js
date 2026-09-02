@@ -50,22 +50,26 @@ function preparar(dados) {
 }
 
 export class ProdutoRepository {
+  constructor(clientePrisma = prisma) {
+    this.prisma = clientePrisma;
+  }
+
   async criar(dados) {
-    return serializar(await prisma.produtos.create({
+    return serializar(await this.prisma.produtos.create({
       data: { ...preparar(dados), permite_imagem: false },
       include: incluirCategoria,
     }));
   }
 
   async buscarPorId(idProduto) {
-    return serializar(await prisma.produtos.findFirst({
+    return serializar(await this.prisma.produtos.findFirst({
       where: { id_produto: Number(idProduto), item_ativo: true, deletado_em: null },
       include: incluirCategoria,
     }));
   }
 
   async buscarPorCaminhoImagem(caminhoImagem, ignorarIdProduto) {
-    const produto = await prisma.produtos.findFirst({
+    const produto = await this.prisma.produtos.findFirst({
       where: {
         url_imagem: caminhoImagem,
         item_ativo: true,
@@ -85,32 +89,57 @@ export class ProdutoRepository {
       ...(idCategoria && { id_categoria: idCategoria }),
       ...(ativo !== undefined && { ativo }),
     };
-    const [produtos, total] = await prisma.$transaction([
-      prisma.produtos.findMany({
+    const [produtos, total] = await this.prisma.$transaction([
+      this.prisma.produtos.findMany({
         where,
         include: incluirCategoria,
         orderBy: [{ nome: "asc" }, { id_produto: "asc" }],
         skip: (pagina - 1) * limite,
         take: limite,
       }),
-      prisma.produtos.count({ where }),
+      this.prisma.produtos.count({ where }),
     ]);
     return { produtos: produtos.map(serializar), total };
   }
 
   async atualizar(idProduto, dados) {
-    return serializar(await prisma.produtos.update({
-      where: { id_produto: Number(idProduto) },
-      data: preparar(dados),
-      include: incluirCategoria,
-    }));
+    return this.prisma.$transaction(async (transacao) => {
+      const produto = await transacao.produtos.update({
+        where: { id_produto: Number(idProduto) },
+        data: preparar(dados),
+        include: incluirCategoria,
+      });
+      if (dados.ativo === false) {
+        await transacao.combos.updateMany({
+          where: {
+            item_ativo: true,
+            deletado_em: null,
+            itens_combo: { some: { id_produto: Number(idProduto) } },
+          },
+          data: { ativo: false },
+        });
+      }
+      return serializar(produto);
+    });
   }
 
   async excluir(idProduto) {
-    const resultado = await prisma.produtos.updateMany({
-      where: { id_produto: Number(idProduto), item_ativo: true, deletado_em: null },
-      data: { item_ativo: false, ativo: false, deletado_em: new Date(), url_imagem: null },
+    return this.prisma.$transaction(async (transacao) => {
+      const resultado = await transacao.produtos.updateMany({
+        where: { id_produto: Number(idProduto), item_ativo: true, deletado_em: null },
+        data: { item_ativo: false, ativo: false, deletado_em: new Date(), url_imagem: null },
+      });
+      if (resultado.count > 0) {
+        await transacao.combos.updateMany({
+          where: {
+            item_ativo: true,
+            deletado_em: null,
+            itens_combo: { some: { id_produto: Number(idProduto) } },
+          },
+          data: { ativo: false },
+        });
+      }
+      return resultado.count > 0;
     });
-    return resultado.count > 0;
   }
 }

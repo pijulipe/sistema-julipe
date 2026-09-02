@@ -122,9 +122,10 @@
 | Coluna | Tipo PostgreSQL | Nulo? | Padrão | Descrição |
 | :--- | :--- | :--- | :--- | :--- |
 | `id_combo` | `INT` | **NÃO** | `IDENTITY` | Chave primária do combo. |
-| `nome` | `VARCHAR(255)` | **NÃO** | - | Nome comercial do combo (ex: Kit Festa Top). |
+| `nome` | `VARCHAR(255)` | **NÃO** | - | Nome comercial; único entre registros não excluídos após `LOWER(TRIM(nome))`. |
 | `descricao` | `TEXT` | SIM | NULL | Descrição dos itens inclusos. |
-| `preco` | `NUMERIC(10,2)` | **NÃO** | - | Preço promocional fechado. |
+| `preco` | `NUMERIC(10,2)` | **NÃO** | - | Preço definido pelo usuário, maior ou igual a zero. |
+| `versao` | `INT` | **NÃO** | `1` | Versão incrementada quando nome, preço ou composição mudam efetivamente. |
 | `ativo` | `BOOLEAN` | **NÃO** | `TRUE` | Status de exibição no cardápio. |
 | `item_ativo` | `BOOLEAN` | **NÃO** | `TRUE` | Flag de registro ativo. |
 | `deletado_em` | `TIMESTAMP WITH TIME ZONE` | SIM | NULL | Data de exclusão lógica. |
@@ -173,6 +174,10 @@
 | `id_combo` | `INT` | **NÃO** | - | FK para a tabela `combos`. |
 | `id_produto` | `INT` | **NÃO** | - | FK para a tabela `produtos`. |
 | `quantidade` | `NUMERIC(10,3)` | **NÃO** | `1.000` | Quantidade do produto no combo. |
+
+O par (`id_combo`, `id_produto`) é único. As duas chaves estrangeiras usam
+`ON DELETE RESTRICT`; o fluxo da aplicação emprega exclusão lógica. A quantidade
+deve ser positiva e o backend também valida o múltiplo mínimo vigente do produto.
 
 ---
 
