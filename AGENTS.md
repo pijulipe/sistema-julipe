@@ -2,7 +2,7 @@
 
 > Documento principal de arquitetura, desenvolvimento e regras de negócio.
 >
-> Revisado a partir do código em 28/08/2026.
+> Revisado a partir do código em 02/09/2026.
 >
 > Se uma solicitação conflitar com uma decisão confirmada aqui, informar o conflito antes de alterar o projeto. Regras pendentes não podem ser decididas por suposição: solicitar confirmação e documentá-la antes da implementação.
 
@@ -12,7 +12,7 @@
 
 O JULIPE é um sistema web de gerenciamento interno de uma doceria, abrangendo pedidos, clientes, funcionários, produção, estoque, produtos, combos, expedição, relatórios e configurações.
 
-O projeto está em desenvolvimento. Autenticação, clientes, funcionários e produtos já estão integrados entre frontend, backend e banco. Os demais módulos exibidos no frontend são, em sua maioria, protótipos funcionais mantidos apenas no estado do React, sem persistência pela API.
+O projeto está em desenvolvimento. Autenticação, clientes, funcionários, produtos e combos já estão integrados entre frontend, backend e banco. Os demais módulos exibidos no frontend são, em sua maioria, protótipos funcionais mantidos apenas no estado do React, sem persistência pela API.
 
 Princípios obrigatórios:
 
@@ -204,13 +204,23 @@ Cadastro usa `@supabase/supabase-js` (Admin API) com `SUPABASE_SERVICE_ROLE_KEY`
 - Fotos de Bolos e Doces usam upload direto autorizado pelo backend para o bucket privado `imagens-produtos`; o banco armazena apenas o caminho e a API fornece URLs temporárias de leitura.
 - O frontend de Produtos usa a API real, incluindo formulário, filtros, paginação e upload, substituição e remoção da foto.
 
+### Combos
+
+- Combos possuem CRUD completo em `/api/combos`, com busca, paginação, filtro de atividade, ativação, inativação e exclusão lógica.
+- A composição é persistida atomicamente em `itens_combo`, valida produtos vigentes e seus múltiplos mínimos e impede produtos repetidos.
+- Nome vigente possui unicidade normalizada garantida também por índice parcial no banco.
+- Alterações efetivas de nome, preço ou composição incrementam `versao`; descrição isolada e atualizações idempotentes não incrementam.
+- Inativação ou exclusão lógica de produto inativa os combos relacionados na mesma transação; reativação de produto não os reativa.
+- O módulo é protegido pela recarga de acesso atual e permissão `COMBOS`.
+- O frontend de Combos usa a API real, com estados de carregamento, vazio e erro, confirmação de exclusão, filtros e paginação.
+
 ### Testes existentes
 
-Cobrem autenticação HS256/ES256, audiência, assinatura, expiração, vínculo, endpoint de login, autorização por módulo, recarga/revogação de acesso e regras principais do Service de clientes.
+Cobrem autenticação HS256/ES256, audiência, assinatura, expiração, vínculo, endpoint de login, autorização por módulo, recarga/revogação de acesso, regras principais dos Services de clientes, produtos e combos, contratos de validação e integração transacional entre produtos e combos.
 
 ## Parcial ou protótipo
 
-- pedidos, combos, estoque e configurações usam estado React em memória;
+- pedidos, estoque e configurações usam estado React em memória;
 - IDs são contadores locais e os dados se perdem ao recarregar;
 - produção, expedição, dashboard e relatórios calculam sobre pedidos em memória;
 - o fluxo visual de status permite avanços e retornos, mas não define a regra final;
@@ -290,6 +300,7 @@ Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam re
 - Não haverá administração de categorias; elas são persistidas no banco e consultadas pela API.
 - Cada categoria possui uma quantidade padrão por pacote. `Salgados` usa 25 unidades; as demais usam 1, salvo valor confirmado já persistido no banco.
 - O produto pode sobrescrever o padrão da categoria. O campo “unidades por pacote” do frontend corresponde a `multiplo_minimo` e determina os múltiplos permitidos para venda.
+- `precoUnitario` representa o preço de um pacote definido por `multiploMinimo`, não o preço de cada unidade interna. Exemplo: produto com `multiploMinimo = 25` e `precoUnitario = 20` custa R$ 20 por 25 unidades; 50 unidades custam R$ 40.
 - As unidades de medida permitidas são `Unidade`, `Kg`, `Litro`, `Pacote` e `Fatia`.
 - O preço não pode ser negativo, o múltiplo mínimo deve ser inteiro maior que zero e o tempo de preparo, em minutos, deve ser inteiro maior ou igual a zero.
 - Cada produto pode ter no máximo uma foto, e somente produtos das categorias `Bolos` e `Doces` aceitam foto.
@@ -299,6 +310,24 @@ Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam re
 - Produtos podem ser ativados e inativados e usam exclusão lógica; excluídos não aparecem nas consultas comuns.
 - O módulo exige a permissão `PRODUTO`. `GERENTE` possui acesso funcional total e os demais perfis precisam da permissão individual ativa.
 - O backend recarrega perfil, atividade e permissões atuais do banco antes de autorizar cada requisição, de modo que concessões e revogações valem na requisição seguinte.
+
+## Combos
+
+- O nome é obrigatório e único entre combos não excluídos logicamente, ignorando maiúsculas, minúsculas e espaços nas extremidades. O nome pode ser reutilizado após a exclusão lógica do cadastro anterior.
+- A descrição é opcional. O preço é definido livremente pelo usuário, pode ser zero e não pode ser negativo.
+- Todo combo possui ao menos um produto. Um produto aparece no máximo uma vez por combo; uma nova seleção do mesmo produto deve atuar sobre a linha existente no frontend.
+- Somente produtos ativos, não excluídos logicamente e operacionalmente válidos podem compor combos.
+- A quantidade de cada produto é positiva e respeita o `multiploMinimo` vigente. Todas as regras são validadas novamente pelo backend.
+- Combos podem ser ativados, inativados e excluídos logicamente. Excluídos não aparecem nas consultas administrativas comuns; inativos ou excluídos não podem ser incluídos em novos pedidos, mas permanecem identificáveis no histórico.
+- Inativar ou excluir logicamente um produto inativa, na mesma transação, todos os combos não excluídos que o utilizam. Reativar o produto não reativa os combos relacionados.
+- A reativação de combo é manual e revalida composição não vazia, produtos não repetidos, produtos ativos e não excluídos, quantidades positivas e múltiplos mínimos vigentes. Combo excluído não pode ser reativado pelo fluxo comum.
+- Nome, descrição, preço e composição podem ser editados. Alterar efetivamente nome, preço ou composição incrementa a versão; alterar somente a descrição não incrementa.
+- Atualizações idempotentes não incrementam versão. A comparação da composição considera produtos e quantidades independentemente da ordem recebida.
+- Futuras vendas de combos preservarão uma fotografia histórica com nome, preço, versão, produtos e quantidades vendidos. Alterações posteriores nunca modificarão pedidos antigos.
+- O histórico futuro distinguirá alteração posterior de nome, preço ou composição, inatividade e exclusão lógica. Alteração somente de descrição não indicará mudança histórica.
+- A estrutura da fotografia histórica será definida e implementada com o módulo de Pedidos; nesta etapa o cadastro mantém uma versão persistida e referências restritivas, sem criar endpoints ou fluxos de Pedidos.
+- O módulo exige a permissão `COMBOS`. `GERENTE` possui acesso funcional total e os demais perfis precisam da permissão individual ativa.
+- O backend recarrega perfil, atividade e permissões atuais do banco antes de autorizar cada requisição, de modo que concessões, revogações e desativações valem na requisição seguinte.
 
 ## Fotos de referência dos pedidos
 
