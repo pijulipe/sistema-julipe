@@ -20,7 +20,12 @@ const MODULOS_PERMISSAO = [
  *
  * Em "create", permissões e situação ativa não aparecem no formulário —
  * o backend concede as permissões iniciais e ativa a conta automaticamente.
- * Edição de dados cadastrais (nome/e-mail) ainda não existe nesta tela.
+ *
+ * Em "edit", os campos de Nome, E-mail, Senha e Conta ativa são exibidos e
+ * editáveis na interface, mas ainda não estão conectados a uma chamada de
+ * salvamento (não há endpoint/handler no contexto para persistir essas
+ * alterações) — só "Perfil de Acesso" e "Permissões" continuam sendo
+ * salvos de fato, como antes.
  */
 export default function FuncionarioModal({ mode, idUsuario, onClose }) {
   const { buscarFuncionario, atualizarPerfil, atualizarPermissoes, criarFuncionario } =
@@ -43,6 +48,12 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
   const [perfilNovoFuncionario, setPerfilNovoFuncionario] = useState("ATENDENTE");
   const [criando, setCriando] = useState(false);
 
+  // Campos editáveis do funcionário existente (modo "edit")
+  const [nomeEditado, setNomeEditado] = useState("");
+  const [emailEditado, setEmailEditado] = useState("");
+  const [senhaEditada, setSenhaEditada] = useState("");
+  const [contaAtiva, setContaAtiva] = useState(true);
+
   useEffect(() => {
     if (isCreate) return;
 
@@ -57,6 +68,10 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
         setFuncionario(resultado);
         setPerfilSelecionado(resultado.perfilAcesso);
         setPermissoesSelecionadas(resultado.permissoes || []);
+        setNomeEditado(resultado.nome || "");
+        setEmailEditado(resultado.email || "");
+        setSenhaEditada("");
+        setContaAtiva(resultado.ativo !== false);
       } catch (erroCarregar) {
         if (!cancelado) setErro(erroCarregar.message);
       } finally {
@@ -200,10 +215,34 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
             <p className="text-sm text-slate-400">Carregando funcionário...</p>
           ) : funcionario ? (
             <>
-              <div>
-                <div className="text-sm font-semibold text-slate-900">{funcionario.nome}</div>
-                <div className="text-xs text-slate-400">{funcionario.email}</div>
-              </div>
+              <Field label="Nome" required>
+                <input
+                  value={nomeEditado}
+                  onChange={(e) => setNomeEditado(e.target.value)}
+                  placeholder="Nome do funcionário"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </Field>
+
+              <Field label="E-mail" required>
+                <input
+                  type="email"
+                  value={emailEditado}
+                  onChange={(e) => setEmailEditado(e.target.value)}
+                  placeholder="email@exemplo.com"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </Field>
+
+              <Field label="Senha (deixe em branco para manter)">
+                <input
+                  type="password"
+                  value={senhaEditada}
+                  onChange={(e) => setSenhaEditada(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </Field>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -237,6 +276,16 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
                   </button>
                 )}
               </div>
+
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={contaAtiva}
+                  onChange={(e) => setContaAtiva(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                Conta ativa
+              </label>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
