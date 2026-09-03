@@ -24,7 +24,7 @@ Todas as rotas de clientes exigem `Authorization: Bearer <token>`. O JWT HS256, 
 }
 ```
 
-Gerentes acessam o módulo por hierarquia. Outros funcionários precisam da permissão `CLIENTES`. A origem dessas permissões será integrada ao modelo definitivo de usuários e cargos quando ele for decidido.
+Gerentes acessam o módulo por hierarquia. Outros funcionários precisam da permissão `CLIENTES` na implementação atual. O modelo de cargos e exceções individuais foi confirmado em 03/09/2026, mas ainda não foi implementado. Consulte o [AGENTS.md](../AGENTS.md) e a [consolidação documental](../documentacao_bd/07_decisoes_confirmadas_2026-09-03.md); a referência de negócio `CLIENTE` não renomeia automaticamente a chave existente `CLIENTES`.
 
 ## Rotas de clientes
 

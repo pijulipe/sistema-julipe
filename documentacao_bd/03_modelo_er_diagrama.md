@@ -1,5 +1,7 @@
 # Diagrama Entidade-Relacionamento (DER) - Doceria Julipe
 
+> **Escopo — 03/09/2026:** o diagrama representa o modelo documentado existente, não a evolução de negócio recém-confirmada. Cargos/exceções, auditoria, pagamentos/estornos e endereço histórico precisam de proposta própria. Consulte os [impactos confirmados](07_decisoes_confirmadas_2026-09-03.md); nenhuma entidade futura foi acrescentada como se já estivesse implementada.
+
 **Projeto:** Sistema de Gerenciamento Operacional - Doceria Julipe  
 **Formato:** Mermaid ER Diagram  
 

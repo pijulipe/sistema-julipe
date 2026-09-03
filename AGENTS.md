@@ -2,7 +2,9 @@
 
 > Documento principal de arquitetura, desenvolvimento e regras de negócio.
 >
-> Revisado a partir do código em 02/09/2026.
+> Implementação revisada em 02/09/2026. Regras de negócio consolidadas com o usuário em 03/09/2026.
+>
+> As novas regras abaixo estão aprovadas para implementação futura; esta revisão é exclusivamente documental e não altera código, SQL, Prisma ou banco. Veja também `documentacao_bd/07_decisoes_confirmadas_2026-09-03.md`.
 >
 > Se uma solicitação conflitar com uma decisão confirmada aqui, informar o conflito antes de alterar o projeto. Regras pendentes não podem ser decididas por suposição: solicitar confirmação e documentá-la antes da implementação.
 
@@ -223,12 +225,12 @@ Cobrem autenticação HS256/ES256, audiência, assinatura, expiração, vínculo
 - pedidos, estoque e configurações usam estado React em memória;
 - IDs são contadores locais e os dados se perdem ao recarregar;
 - produção, expedição, dashboard e relatórios calculam sobre pedidos em memória;
-- o fluxo visual de status permite avanços e retornos, mas não define a regra final;
-- horários, alertas de capacidade e baixa automática de estoque são provisórios;
+- o fluxo visual de status permite avanços e retornos, mas ainda não implementa integralmente as regras confirmadas em 03/09/2026;
+- horários e alertas de capacidade continuam sem persistência; o modelo de cálculo foi confirmado, mas a baixa automática de estoque permanece pendente;
 - seleção de telas (`TELAS_ACESSO`, no frontend) ainda não usa API nem cargos definitivos; permissões reais de funcionários usam módulos (`MODULOS_PERMISSAO`), já integrados;
 - não há rotas backend para os módulos ainda em protótipo.
 
-Comportamentos desses protótipos orientam interface e discussão, mas não confirmam regras pendentes.
+Comportamentos desses protótipos só são regras quando explicitamente confirmados nas seções abaixo. A aprovação do modelo de capacidade e dos rótulos de status não aprova indiscriminadamente os demais comportamentos ou falhas do frontend.
 
 ---
 
@@ -265,7 +267,9 @@ O banco representa categorias, produtos, combos, clientes, usuários, permissõe
 
 Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam registradas em `documentacao_bd/sql/`, cada arquivo com data e motivo.
 
-## Características observáveis, ainda sujeitas às regras pendentes
+## Estrutura existente e lacunas em relação às regras confirmadas
+
+Esta lista descreve o banco existente, não o modelo futuro aprovado de negócio. As lacunas exigem proposta de migração antes de implementação.
 
 - podem existir vários `GERENTE` e `ADMINISTRADOR`;
 - perfis atuais: `ADMINISTRADOR`, `GERENTE` e `ATENDENTE`;
@@ -278,8 +282,8 @@ Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam re
 - existe uma única forma de pagamento textual;
 - pagamentos: `PENDENTE`, `PAGO`, `PARCIAL`, `REJEITADO`, `ESTORNADO`, `CANCELADO`;
 - não há valor pago, saldo ou parcelas para `PARCIAL`;
-- desconto percentual e em valor coexistem sem regra de combinação;
-- imagens são URLs sem serviço ou limites definidos;
+- desconto percentual e em valor coexistem, mas o banco ainda não registra a ordem de aplicação confirmada;
+- imagens de pedidos ainda não possuem o fluxo definitivo; fotos cadastrais de produtos já usam Storage conforme a seção de Produtos;
 - `limites_horario` guarda data, intervalo, limite, agendados e bloqueio;
 - pedido guarda apenas `id_usuario_atendente`, sem auditoria completa de alterações.
 
@@ -335,7 +339,8 @@ Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam re
 
 ## Usuários e permissões
 
-- As regras abaixo representam a primeira versão vigente do módulo. Devem ficar centralizadas e cobertas por testes para permitir evolução posterior sem espalhar decisões de autorização pelo sistema.
+- As regras abaixo incluem a administração já integrada e a evolução confirmada em 03/09/2026. Cargos, exceções negativas e capacidades de ação ainda não estão implementados. Centralizar as regras e cobri-las por testes.
+- Os perfis permanecem `ATENDENTE`, `ADMINISTRADOR` e `GERENTE`. “Funcionário” e “operador” não criam novos perfis; cargo configurável não substitui perfil de acesso.
 - `GERENTE` possui acesso funcional total, independentemente de permissões individuais.
 - Nenhum usuário pode editar um `GERENTE`, inclusive o próprio gerente.
 - Gerente pode cadastrar funcionários com perfil `ATENDENTE`, `ADMINISTRADOR` ou `GERENTE`.
@@ -346,40 +351,88 @@ Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam re
 - Administrador pode consultar e editar as permissões de atendentes e de outros administradores.
 - Administrador não pode editar a si próprio nem qualquer gerente.
 - Atendente não administra funcionários ou permissões.
-- O catálogo inicial de permissões por módulo é: `PEDIDOS`, `PRODUCAO`, `PRODUTO`, `COMBOS`, `RELATORIO`, `CLIENTES`, `ESTOQUE`, `EXPEDICAO` e `FUNCIONARIOS`.
-- Início, novo pedido e configurações não são permissões independentes nesta primeira versão; novo pedido pertence ao módulo `PEDIDOS`.
+- O catálogo de telas confirmado é: `PEDIDOS`, `PRODUCAO`, `PRODUTO`, `COMBOS`, `RELATORIO`, `CLIENTE`, `ESTOQUE`, `EXPEDICAO` e `FUNCIONARIOS`. Na implementação existente, Clientes usa a chave `CLIENTES` (plural). São referências ao mesmo módulo, não duas permissões; nenhuma chave persistida ou contrato foi renomeado nesta revisão. A compatibilidade será tratada na proposta técnica.
+- Produção e Expedição são permissões independentes de Pedidos. Novo pedido pertence a `PEDIDOS`.
+- Todos os usuários internos ativos e autenticados acessam o Início. Não existe módulo independente `INICIO`.
+- Não existe permissão `CONFIGURACOES`: o acesso a Configurações é exclusivo do perfil `GERENTE`.
 - Ao cadastrar um novo funcionário, as permissões individuais concedidas por padrão são `CLIENTES` e `PEDIDOS`.
-- A primeira versão administrará permissões individuais. Cargos configuráveis, herança e exceções negativas permanecem como evolução futura.
+- A implementação atual administra apenas permissões individuais; a evolução aprovada combina cargo e exceções individuais conforme a subseção abaixo.
 - Gerente e administrador podem consultar o catálogo administrativo de módulos; atendente não possui esse acesso.
 - A listagem administrativa de funcionários inclui, por padrão, ativos e inativos que não estejam excluídos logicamente, podendo filtrar explicitamente pela atividade.
 - Funcionários com `itemAtivo = false` ou `deletadoEm` preenchido não aparecem nas consultas administrativas comuns.
 - Gerente e administrador podem consultar os dados e as permissões de funcionários ativos ou inativos, respeitando as restrições de edição por perfil.
 - Permissões de atendentes e administradores inativos podem ser alteradas por quem possuir autoridade sobre o funcionário.
-- A substituição de permissões aceita uma lista vazia para revogar todas as permissões individuais e deve ser atômica, idempotente e sem exclusão física.
+- Na API atual, a substituição de permissões aceita uma lista vazia para revogar todas as permissões individuais e deve ser atômica, idempotente e sem exclusão física. No modelo com cargos, o contrato precisará distinguir remoção de exceções individuais de negação explícita de permissões herdadas.
 - Somente chaves do catálogo vigente podem ser concedidas. Consultas ignoram chaves desconhecidas sem apagá-las; uma substituição explícita desativa logicamente permissões ativas que não estejam no conjunto solicitado.
 - Gerente pode alterar o perfil de atendentes e administradores ativos ou inativos. Repetir o perfil atual é uma operação idempotente.
 - Alterar o perfil preserva as permissões individuais existentes. Ao promover para `GERENTE`, elas deixam de controlar o acesso, mas permanecem armazenadas; o gerente promovido torna-se imutável pelas regras vigentes.
-- O modelo futuro combinará permissões do cargo e individuais.
-- Cada módulo poderá ser concedido ou retirado por funcionário.
-- Limite de desconto será definido por cargo.
-- Gerente poderá autorizar desconto acima do limite.
+
+### Cargos e exceções individuais — confirmados, ainda não implementados
+
+- O sistema começa sem cargos cadastrados; somente gerente cria e altera cargos e suas permissões.
+- Cargo fornece um conjunto de permissões básicas. Funcionário pode operar sem cargo, usando permissões individuais.
+- Exceções individuais concedem ou retiram permissões e prevalecem sobre o cargo. Gerente permanece com acesso total, sem restrição por cargo ou exceção.
+- Concessão de módulo não contorna restrições administrativas de perfil, como a proibição de atendente administrar funcionários ou de editar gerente.
+- `podeCancelarPedido` é uma capacidade de ação adicional ao acesso a `PEDIDOS`, não uma tela ou módulo novo.
+- Atendente não pode cancelar por padrão; administrador pode por padrão; gerente sempre pode. Cargo e configuração individual podem alterar essa capacidade para não gerentes, prevalecendo a individual.
+- Ter somente `PEDIDOS` não basta para cancelar: também é necessária a capacidade efetiva de cancelamento. Esta regra substitui a resposta anterior de que todo usuário de Pedidos poderia cancelar.
+- Limites de desconto e estorno são definidos por cargo e podem ser sobrescritos individualmente pelo gerente. A configuração individual prevalece. Valores iniciais e representação dos limites serão tratados na proposta de implementação, sem presumir acesso ilimitado.
 
 `permissoes_funcionario` resolveu permissões individuais simples e já protege clientes. Não resolve cargos configuráveis, herança nem exceções negativas; o modelo combinado continua incompleto.
 
 ## Pedidos e auditoria
 
-- Status podem saltar etapas; `RECEBIDO → PRONTO` é permitido.
-- Entregues e cancelados não reabrem, faltando decidir a exceção do gerente.
-- Cancelados ficam nos relatórios e não entram no faturamento.
-- Endereço de entrega inicia com o do cliente e pode ser alterado na venda.
-- Deve-se registrar a atendente responsável por criação, edição, cancelamento e mudança de status.
+- Status: `RECEBIDO`, `EM_PRODUCAO`, `PRONTO`, `EM_ROTA`, `ENTREGUE` e `CANCELADO`.
+- “Retirado” é o rótulo de `ENTREGUE` quando o tipo é `RETIRADA`, como no frontend; não é um novo status persistido.
+- Por enquanto, usuários autorizados podem mudar livremente os status operacionais, inclusive saltar e retornar etapas. A decisão final substitui a lista preliminar de transições proibidas; não dispensa autorização no backend.
+- Cancelar exige a capacidade definida acima. Motivo do cancelamento é opcional.
+- Somente gerente reabre pedido entregue, retirado ou cancelado; a reabertura volta para `EM_PRODUCAO`. A liberdade de transições não contorna essa restrição.
+- Cancelados permanecem no histórico e nos relatórios, mas não entram no faturamento.
+- Auditoria preserva identificador do usuário e nome no momento da ação, exibindo somente o nome na interface. Não depender do nome cadastral atual para identificar o autor histórico.
+- Registrar criação, edição, cancelamento, mudança de status, pagamento, estorno e autorização de desconto, com data/hora e ação; motivo quando aplicável. Edições registram campos alterados e valores anteriores/novos; mudanças de status registram anterior/novo.
+- O pedido não deve perder o histórico ao ser cancelado, reaberto ou editado. A estrutura física da auditoria ainda exige proposta.
+
+## Endereço de entrega
+
+- Cliente mantém somente um endereço principal salvo.
+- Endereço do pedido inicia com o principal do cliente, mas pode ser alterado somente para aquela venda, sem atualizar automaticamente o cadastro do cliente.
+- Preservar no pedido o endereço efetivamente usado, independente de alterações posteriores no cliente.
+- Campos estruturados: rua, número, bairro, complemento, ponto de referência, CEP, cidade e estado. O modelo existente ainda não contém todos esses campos nem a fotografia histórica no pedido.
+
+## Pagamentos, estornos e relatórios
+
+- O sistema apenas registra informações: não processa pagamentos nem integra bancos, adquirentes ou meios de pagamento. Registrar estorno não executa devolução financeira externa.
+- Formas oficiais: débito, crédito e Pix. Um pedido admite vários pagamentos, formas diferentes e datas diferentes.
+- Cada lançamento registra valor, forma, data/hora e usuário responsável. Situações dos lançamentos: `CONFIRMADO`, `REJEITADO` e `ESTORNADO`.
+- Situação financeira geral do pedido: `PENDENTE`, `PARCIAL` ou `PAGO`, calculada sobre os valores confirmados, descontados os estornos; rejeitados não contam como recebimento.
+- Para pedido de total positivo: valor líquido pago igual a zero resulta em `PENDENTE`; positivo inferior ao total resulta em `PARCIAL`; igual ou superior ao total resulta em `PAGO`. Tratamento de pedido de total zero e detalhes de arredondamento serão explicitados na proposta técnica.
+- Estorno parcial mantém contabilizada a parcela não devolvida; não tratar o lançamento inteiro como devolvido ao registrar somente parte. A representação desse saldo será definida na proposta física.
+- Cancelamento é status do pedido e não apaga pagamentos. Valores já recebidos são sinalizados para estorno manual e permanecem registrados até o estorno; não há devolução automática.
+- Gerente configura limites de estorno por cargo e pode sobrescrevê-los por funcionário. Não é uma operação exclusiva do gerente: outros funcionários obedecem ao limite efetivo configurado.
+- Estornos podem ser totais ou parciais. Gerente não possui limite administrativo, mas o acumulado estornado nunca pode ultrapassar o valor confirmado do pagamento; toda operação é auditada.
+- Estorno recalcula a situação financeira do pedido. Devolução integral dos recebimentos de um pedido de total positivo resulta em `PENDENTE`, mesmo se o pedido estiver `CANCELADO`.
+- Aceitar pagamento acima do total e registrar integralmente o valor informado. Não descartar o excedente nem convertê-lo automaticamente em troco ou crédito.
+- Relatórios distinguem valor do pedido/faturamento, valor recebido, estornos e excedente. Pedido de R$ 100 com R$ 110 pagos representa R$ 100 de faturamento e R$ 110 recebidos, com R$ 10 de excedente; cancelados continuam excluídos do faturamento.
+
+## Descontos
+
+- Permitir percentual, valor fixo em reais ou ambos no mesmo pedido. Motivo é opcional.
+- A ordem é escolhida no pedido: percentual antes do valor fixo ou valor fixo antes do percentual. Preservar a ordem e os valores aplicados no histórico.
+- Limite por cargo com substituição individual por funcionário, configurável pelo gerente.
+- Comparar o desconto efetivo total como porcentagem do subtotal: R$ 30 de desconto sobre R$ 200 equivalem a 15%, independentemente dos componentes usados.
+- Desconto acima do limite exige autorização do gerente com a própria conta; a autorização vale apenas para aquele pedido, não concede permissão permanente.
+- Auditar quem autorizou, limite original, desconto concedido e data/hora. Gerente mantém acesso funcional total.
 
 ## Capacidade
 
-- Controle por intervalos configuráveis.
-- Gerente define duração e quantidade máxima.
-- Intervalo lotado rejeita novos pedidos.
-- Duração e quantidade não podem ser fixadas no código.
+- Seguir o modelo de cálculo confirmado do frontend: unidades reais por categoria, agrupadas pela data e faixa de uma hora do horário agendado; combos são decompostos em produtos sem duplicar unidades por pacote.
+- Produtos de uma mesma categoria têm o mesmo peso por unidade nesta etapa; não há ponderação por complexidade nem uma vaga igual por pedido.
+- Limite configurável por categoria, igual em todos os dias e horários. Não há variação do limite por dia da semana ou data específica nesta versão. Categoria sem limite configurado não gera alerta.
+- Horários de funcionamento variam por dia da semana; horários selecionáveis seguem o frontend, a cada 15 minutos. Isso é distinto do agrupamento de capacidade por hora.
+- Exceder o limite gera somente aviso e permite continuar, inclusive para não gerentes. Não existe bloqueio nem autorização especial para exceder a capacidade.
+- A decisão final substitui a regra anterior de rejeitar intervalo lotado e a autorização exclusiva de gerente. Portanto, não há evento obrigatório de “autorização de excesso” a auditar; criação/edição permanece auditada normalmente.
+- Cancelamento libera imediatamente a capacidade contabilizada. Pedidos concluídos (`ENTREGUE`, incluindo retirada) saem da contagem conforme o modelo do frontend aprovado. Não copiar a falha atual que ainda conta cancelados em alguns cálculos.
+- Limites são configurados pelo gerente, pelo acesso exclusivo a Configurações. A estrutura existente de `limites_horario` ainda não representa integralmente essa regra.
 
 ---
 
@@ -387,26 +440,7 @@ Correções pontuais de RLS ou funções aplicadas fora do `schema.sql` ficam re
 
 Não implementar comportamento definitivo destes itens sem confirmação. Quando houver resposta, atualizar primeiro as regras confirmadas.
 
-## Usuários e permissões
-
-- Quais cargos configuráveis existirão?
-- A exceção individual concede, retira herança do cargo ou faz ambos?
-- Autorização de desconto extra vale para uma venda ou pode ser permanente?
-- Como persistir a auditoria de cada ação no pedido?
-
-## Pedidos
-
-- Quais transições e retornos serão permitidos?
-- Gerente poderá reabrir entregue ou cancelado?
-- Alterar endereço no pedido atualiza o cliente ou só a venda?
-- O endereço efetivo deve ficar preservado no pedido?
-
-## Pagamentos e descontos
-
-- Quais formas de pagamento?
-- Haverá múltiplas formas no mesmo pedido?
-- Como representar parcial, valor pago e saldo?
-- Como combinar desconto em valor e porcentagem?
+As perguntas discutidas sobre pedidos, cargos, permissões, pagamentos, descontos, endereço e capacidade foram consolidadas acima em 03/09/2026. Não reabrir essas decisões apenas porque o código ou o banco ainda usa o modelo antigo. Desenho físico, contratos, valores iniciais e migração continuam sujeitos à proposta técnica, sem autorização para alterar o banco nesta etapa documental.
 
 ## Estoque e produção
 
@@ -417,13 +451,13 @@ Não implementar comportamento definitivo destes itens sem confirmação. Quando
 
 Questões exclusivas de estoque podem aguardar o planejamento previsto para o próximo ano.
 
-## Capacidade
+## Preparação da implementação
 
-- Todo pedido ocupa uma vaga igualmente?
-- Cancelado libera vaga?
-- Gerente pode exceder o limite?
-- Configuração varia por dia da semana ou data?
-- Limite será por pedidos, itens/categorias ou ambos?
+- Propor persistência para auditoria, cargos/exceções, capacidades, limites, pagamentos/estornos, endereço histórico, ordem dos descontos e capacidade por categoria.
+- Definir compatibilidade entre `CLIENTE` (catálogo aprovado) e `CLIENTES` (chave existente), sem renomeação automática.
+- Explicitar valores iniciais dos limites, unidade/escopo do limite de estorno, casos de total zero, arredondamento e contratos de atualização; não transformar ausência de configuração em concessão ilimitada por suposição.
+- Planejar preservação dos pedidos existentes e fotografia histórica de combos conforme as regras já confirmadas.
+- Proposta estrutural deve separar decisões técnicas de qualquer nova regra de negócio que necessite validação. Nenhuma tabela sugerida na conversa foi criada por esta revisão.
 
 ---
 

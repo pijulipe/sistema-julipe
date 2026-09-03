@@ -1,5 +1,7 @@
 # Dicionário de Dados - Doceria Julipe
 
+> **Escopo — 03/09/2026:** este dicionário documenta a estrutura existente, não as tabelas futuras. As [decisões confirmadas e lacunas do banco](07_decisoes_confirmadas_2026-09-03.md) complementam este documento. Forma única de pagamento, enum financeiro legado, ausência de endereço histórico e `limites_horario` não definem mais a regra de negócio futura. SQL e Prisma não foram alterados nesta revisão.
+
 **SGBD:** PostgreSQL 12+  
 **Projeto:** Sistema de Gerenciamento Operacional - Doceria Julipe  
 

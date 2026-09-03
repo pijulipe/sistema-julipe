@@ -4,6 +4,8 @@
 **Projeto:** Sistema de Gerenciamento Operacional - Doceria Julipe  
 **Data:** 29 de Julho de 2026  
 
+> **Nota de atualização — 03/09/2026:** este relatório é histórico e descreve a análise daquela data. As regras vigentes estão no [AGENTS.md](../AGENTS.md) e na [consolidação de decisões](07_decisoes_confirmadas_2026-09-03.md). Inferências antigas baseadas no protótipo não substituem essas confirmações. Nenhuma nova estrutura foi implementada nesta atualização documental.
+
 ---
 
 ## 1. Contexto e Objetivo
@@ -40,4 +42,4 @@ O objetivo foi identificar lacunas de dados, inconsistências nos fluxos operaci
 
 ## 4. Conclusão
 
-A arquitetura do banco de dados refatorada atende com excelência os Requisitos Funcionais e Não-Funcionais definidos no Documento de Visão e prontifica a base para a integração com a aplicação frontend.
+A análise histórica contribuiu para a estrutura existente, mas não comprova atendimento integral às regras confirmadas posteriormente. Auditoria, cargos/exceções, pagamentos múltiplos, estornos, endereço histórico e demais impactos listados na consolidação de 03/09/2026 ainda exigem proposta de modelagem e implementação.
