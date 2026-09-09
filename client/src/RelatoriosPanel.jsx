@@ -20,6 +20,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { usePedidos } from "./PedidosContext";
+import ResumoFinanceiroPedidos from "./ResumoFinanceiroPedidos.jsx";
 import { useClientes } from "./ClientesContext";
 import { useCombos } from "./CombosContext";
 import { useProdutos } from "./ProdutosContext";
@@ -186,9 +187,8 @@ const REPORT_HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 07h .. 20h
 --------------------------------------------------------- */
 const PAYMENT_METHOD_META = {
   pix: { label: "PIX", color: "#10b981" },
-  dinheiro: { label: "Dinheiro", color: "#f59e0b" },
-  cartao: { label: "Cartão", color: "#3b82f6" },
-  outro: { label: "Outro", color: "#a855f7" },
+  debito: { label: "Débito", color: "#3b82f6" },
+  credito: { label: "Crédito", color: "#a855f7" },
 };
 
 const PAYMENT_STATUS_META = {
@@ -209,6 +209,10 @@ function forEachItemRevenue(itens, produtos, combos, callback) {
   const produtoPorId = (id) => produtos.find((p) => p.id === id);
 
   (itens || []).forEach((item) => {
+    if (item.subtotalCentavos !== undefined) {
+      callback(item.id, item.quantidade, Number(item.subtotalCentavos) / 100);
+      return;
+    }
     if (typeof item.id === "string" && item.id.startsWith("combo-")) {
       const idCombo = Number(item.id.replace("combo-", ""));
       const combo = combos.find((c) => c.id === idCombo);
@@ -253,6 +257,7 @@ function obterFatorDescontoPedido(pedido) {
 function construirVendasProdutos(pedidos, produtos, combos) {
   const map = {};
   pedidos.forEach((pedido) => {
+    if (pedido.status === "cancelado") return;
     const discountFactor = obterFatorDescontoPedido(pedido);
     forEachItemRevenue(pedido.itens, produtos, combos, (idProduto, quantidade, revenue) => {
       if (!map[idProduto]) map[idProduto] = { quantidade: 0, revenue: 0 };
@@ -1312,7 +1317,12 @@ const tabs = [
 export default function RelatoriosPanel() {
   const { pedidos } = usePedidos();
   const { combos } = useCombos();
-  const { produtos } = useProdutos();
+  const { produtos: produtosCadastrados } = useProdutos();
+  const produtos = useMemo(() => {
+    const registros = new Map(produtosCadastrados.map((p) => [p.id, p]));
+    for (const pedido of pedidos) for (const item of pedido.itens) registros.set(item.id, { id: item.id, nome: item.nome, preco: item.preco, categoria: item.tipo === "COMBO" ? "Combos" : item.composicao[0]?.categoria || "Sem categoria" });
+    return [...registros.values()];
+  }, [produtosCadastrados, pedidos]);
   useClientes(); // clientes já vêm embutidos em cada pedido (pedido.cliente)
 
   const [tab, setTab] = useState("visao-geral");
@@ -1336,7 +1346,7 @@ export default function RelatoriosPanel() {
   }, [pedidos, start, end]);
 
   /* -------- métricas -------- */
-  const faturamento = pedidosFiltrados.reduce((sum, o) => sum + (o.total || 0), 0);
+  const faturamento = pedidosFiltrados.reduce((sum, o) => sum + (o.status === "cancelado" ? 0 : (o.total || 0)), 0);
   const totalPedidos = pedidosFiltrados.length;
   const ticketMedio = totalPedidos > 0 ? faturamento / totalPedidos : 0;
   const entregaCount = pedidosFiltrados.filter((o) => o.tipoEntrega !== "retirada").length;
@@ -1366,7 +1376,7 @@ export default function RelatoriosPanel() {
     const days = eachDayISO(start, end);
     const totals = {};
     pedidosFiltrados.forEach((o) => {
-      totals[o.dataEntrega] = (totals[o.dataEntrega] || 0) + (o.total || 0);
+      totals[o.dataEntrega] = (totals[o.dataEntrega] || 0) + (o.status === "cancelado" ? 0 : (o.total || 0));
     });
     return days.map((iso) => ({ date: iso, value: totals[iso] || 0 }));
   }, [pedidosFiltrados, start, end]);
@@ -1479,7 +1489,7 @@ export default function RelatoriosPanel() {
     pedidosFiltrados.forEach((o) => {
       const key =
         o.bairro?.trim() || o.cliente?.bairro?.trim() || "Sem bairro";
-      totals[key] = (totals[key] || 0) + (o.total || 0);
+      totals[key] = (totals[key] || 0) + (o.status === "cancelado" ? 0 : (o.total || 0));
     });
     return Object.entries(totals)
       .map(([label, value]) => ({ label, value }))
@@ -1494,7 +1504,7 @@ export default function RelatoriosPanel() {
     const totals = {};
     pedidosFiltrados.forEach((o) => {
       if (!totals[o.dataEntrega]) totals[o.dataEntrega] = { faturamento: 0, descontos: 0 };
-      totals[o.dataEntrega].faturamento += o.total || 0;
+      totals[o.dataEntrega].faturamento += o.status === "cancelado" ? 0 : (o.total || 0);
       totals[o.dataEntrega].descontos += o.valorDesconto || 0;
     });
     return days.map((iso) => ({
@@ -1504,15 +1514,9 @@ export default function RelatoriosPanel() {
     }));
   }, [pedidosFiltrados, start, end]);
 
-  /* -------- Aba Financeiro: Recebido / A Receber / Descontos (respeita o
-     período selecionado). Como não há um campo de valor efetivamente pago
-     por pedido, "Recebido" considera o total dos pedidos com pagamento
-     marcado como "pago" — qualquer outro status (pendente ou parcial)
-     conta inteiramente como "A Receber". -------- */
-  const recebido = pedidosFiltrados
-    .filter((o) => o.statusPagamento === "pago")
-    .reduce((sum, o) => sum + (o.total || 0), 0);
-  const aReceber = faturamento - recebido;
+  // Recebimentos incluem valores parciais e excedentes; estornos são separados.
+  const recebido = Number(pedidosFiltrados.reduce((soma, o) => soma + BigInt(o.financeiro?.recebidoCentavos || 0), 0n)) / 100;
+  const aReceber = Number(pedidosFiltrados.filter((o) => o.status !== "cancelado").reduce((soma, o) => { const saldo = BigInt(o.fotografia?.totalCentavos || 0) - BigInt(o.financeiro?.liquidoCentavos || 0); return soma + (saldo > 0n ? saldo : 0n); }, 0n)) / 100;
   const descontosTotais = pedidosFiltrados.reduce(
     (sum, o) => sum + (o.valorDesconto || 0),
     0
@@ -1530,8 +1534,11 @@ export default function RelatoriosPanel() {
   const faturamentoPorFormaPagamento = useMemo(() => {
     const totals = {};
     pedidosFiltrados.forEach((o) => {
-      const key = PAYMENT_METHOD_META[o.formaPagamento] ? o.formaPagamento : "outro";
-      totals[key] = (totals[key] || 0) + (o.total || 0);
+      for (const pagamento of o.pagamentos || []) {
+        if (pagamento.situacao === "REJEITADO") continue;
+        const chave = pagamento.forma.toLowerCase();
+        totals[chave] = (totals[chave] || 0) + Number(pagamento.valorCentavos) / 100;
+      }
     });
     return Object.entries(PAYMENT_METHOD_META)
       .map(([key, meta]) => ({
@@ -1677,7 +1684,7 @@ export default function RelatoriosPanel() {
       }
       const entry = map.get(key);
       entry.pedidos += 1;
-      entry.revenue += o.total || 0;
+      entry.revenue += o.status === "cancelado" ? 0 : (o.total || 0);
     });
     return Array.from(map.values());
   }, [pedidosFiltrados]);
@@ -1769,6 +1776,7 @@ export default function RelatoriosPanel() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
+      <ResumoFinanceiroPedidos dataInicio={toISO(start)} dataFim={toISO(end)} />
       {/* Título + controles */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -2204,8 +2212,8 @@ export default function RelatoriosPanel() {
           )}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {showsChart("Faturamento por Forma de Pagamento") && (
-              <ChartCard title="Faturamento por Forma de Pagamento">
+            {showsChart("Recebimentos por Forma de Pagamento") && (
+              <ChartCard title="Recebimentos por Forma de Pagamento">
                 <GraficoDonutCategoria
                   data={faturamentoPorFormaPagamento}
                   emptyLabel="Nenhum pagamento no período selecionado"
@@ -2224,7 +2232,7 @@ export default function RelatoriosPanel() {
           </div>
 
           {!showsChart("Faturamento e Descontos por Dia") &&
-            !showsChart("Faturamento por Forma de Pagamento") &&
+            !showsChart("Recebimentos por Forma de Pagamento") &&
             !showsChart("Status de Pagamento") && (
               <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <BarChart3 size={36} className="mb-3 text-slate-300" strokeWidth={1.5} />

@@ -1,13 +1,4 @@
-/* ---------------------------------------------------------
-   Utilitários de capacidade de produção.
-
-   Um pedido pode ter itens de produto direto (id numérico) ou
-   itens de combo (id no formato "combo-<id>"). Para saber quantos
-   itens "reais" de cada categoria estão sendo pedidos numa hora,
-   é preciso "decompor" os combos nos produtos que os compõem e
-   aplicar o multiplicador unidadesPorPacote de cada produto
-   (ex: 1 pacote de salgados = 25 unidades reais).
---------------------------------------------------------- */
+/** Quantidades representam unidades reais; fotografias preservam a composição vendida. */
 
 /** Extrai o "bucket" de hora (ex: "08:30" -> "08") usado para agrupar pedidos. */
 export function obterFaixaHora(time) {
@@ -24,6 +15,10 @@ export function decomporItensPedido(itens, produtos, combos) {
   const result = [];
 
   (itens || []).forEach((item) => {
+    if (item.composicao) {
+      for (const componente of item.composicao) result.push({ categoria: componente.categoria || componente.idCategoria, unidades: componente.quantidade * item.quantidade });
+      return;
+    }
     if (typeof item.id === "string" && item.id.startsWith("combo-")) {
       const idCombo = Number(item.id.replace("combo-", ""));
       const combo = combos.find((c) => c.id === idCombo);
@@ -32,19 +27,17 @@ export function decomporItensPedido(itens, produtos, combos) {
       combo.itens.forEach((ci) => {
         const produto = produtos.find((p) => p.id === ci.idProduto);
         if (!produto) return;
-        const unidadesPorPacote = produto.unidadesPorPacote || 1;
         result.push({
           categoria: produto.categoria,
-          unidades: ci.quantidade * item.quantidade * unidadesPorPacote,
+          unidades: ci.quantidade * item.quantidade,
         });
       });
     } else {
       const produto = produtos.find((p) => p.id === item.id);
       if (!produto) return;
-      const unidadesPorPacote = produto.unidadesPorPacote || 1;
       result.push({
         categoria: produto.categoria,
-        unidades: item.quantidade * unidadesPorPacote,
+        unidades: item.quantidade,
       });
     }
   });
@@ -75,6 +68,10 @@ export function decomporItensPorProduto(itens, combos) {
   const result = [];
 
   (itens || []).forEach((item) => {
+    if (item.composicao) {
+      for (const componente of item.composicao) result.push({ idProduto: Number(componente.idProduto), quantidade: componente.quantidade * item.quantidade });
+      return;
+    }
     if (typeof item.id === "string" && item.id.startsWith("combo-")) {
       const idCombo = Number(item.id.replace("combo-", ""));
       const combo = combos.find((c) => c.id === idCombo);
@@ -118,7 +115,7 @@ export function obterTotaisPorCategoriaHora(
     (o) =>
       o.dataEntrega === dateISO &&
       obterFaixaHora(o.horarioEntrega) === faixaHora &&
-      o.status !== "entregue"
+      !["entregue", "cancelado"].includes(o.status)
   );
   const allItems = [...matching.flatMap((o) => o.itens), ...itensExtras];
   return somarPorCategoria(decomporItensPedido(allItems, produtos, combos));

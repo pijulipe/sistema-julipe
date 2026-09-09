@@ -7,6 +7,7 @@
     "dev": "node --use-system-ca --watch src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
+    "test:pedidos": "node --test integracao/pedidos.js",
     "banco:testar": "node --env-file=.env scripts/testarConexao.js",
     "prisma:gerar": "prisma generate",
     "prisma:validar": "prisma validate"
@@ -25,6 +26,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "embedded-postgres": "18.4.0-beta.17",
     "prisma": "6.19.0"
   }
 }

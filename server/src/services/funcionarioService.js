@@ -170,6 +170,12 @@ export class FuncionarioService {
     return { idUsuario, permissoes };
   }
 
+  async substituirExcecoes(autor, idUsuario, excecoes) {
+    const funcionario = await this.buscarPorId(idUsuario, autor);
+    if (!this.podeEditarPermissoes(autor, funcionario)) throw new ErroAplicacao("Alteração de exceções não autorizada.", 403);
+    return this.funcionarioRepository.substituirExcecoes(idUsuario, excecoes);
+  }
+
   async alterarPerfil(autor, idUsuario, perfilAcesso) {
     const funcionario = await this.buscarPorId(idUsuario, autor);
 

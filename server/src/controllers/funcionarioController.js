@@ -3,6 +3,8 @@ export class FuncionarioController {
     this.funcionarioService = funcionarioService;
   }
 
+  substituirExcecoes = async (req, res) => res.json({ dados: await this.funcionarioService.substituirExcecoes(req.usuario, req.dadosValidados.parametros.id, req.dadosValidados.corpo.excecoesModulos) });
+
   criar = async (requisicao, resposta) => {
     const funcionario = await this.funcionarioService.criar(
       requisicao.usuario,

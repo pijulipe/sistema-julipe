@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { z } from "zod";
+import { chavesModulos } from "../utils/modulos.js";
 import { FuncionarioController } from "../controllers/funcionarioController.js";
 import { FuncionarioRepository } from "../repositories/funcionarioRepository.js";
 import { FuncionarioService } from "../services/funcionarioService.js";
@@ -30,6 +32,7 @@ rotas.use(
 );
 
 rotas.post("/", validar(criarFuncionarioSchema), controller.criar);
+rotas.put("/:id/excecoes", validar(z.object({ corpo: z.object({ excecoesModulos: z.record(z.enum(chavesModulos), z.boolean()) }).strict(), parametros: z.object({ id: z.string().uuid() }), consulta: z.object({}) })), controller.substituirExcecoes);
 rotas.get("/", validar(listarFuncionariosSchema), controller.listar);
 rotas.get(
   "/:id",

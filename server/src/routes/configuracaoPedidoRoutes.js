@@ -1,0 +1,18 @@
+import { Router } from "express";
+import { autenticar } from "../middlewares/autenticar.js";
+import { carregarAcessoAtual } from "../middlewares/carregarAcessoAtual.js";
+import { validar } from "../middlewares/validar.js";
+import { UsuarioRepository } from "../repositories/usuarioRepository.js";
+import { ConfiguracaoPedidoRepository } from "../repositories/configuracaoPedidoRepository.js";
+import { ConfiguracaoPedidoService } from "../services/configuracaoPedidoService.js";
+import { ConfiguracaoPedidoController } from "../controllers/configuracaoPedidoController.js";
+import { consultaConfiguracaoFuncionarioSchema, configuracaoPedidoSchema, cargoPedidoSchema, configuracaoFuncionarioSchema } from "../validators/configuracaoPedidoValidator.js";
+const rotas = Router();
+const controller = new ConfiguracaoPedidoController(new ConfiguracaoPedidoService(new ConfiguracaoPedidoRepository()));
+rotas.use(autenticar, carregarAcessoAtual(new UsuarioRepository()));
+rotas.get("/", controller.consultar);
+rotas.get("/funcionarios/:id", validar(consultaConfiguracaoFuncionarioSchema), controller.consultarFuncionario);
+rotas.put("/", validar(configuracaoPedidoSchema), controller.salvar);
+rotas.post("/cargos", validar(cargoPedidoSchema), controller.cargo);
+rotas.put("/funcionarios/:id", validar(configuracaoFuncionarioSchema), controller.funcionario);
+export default rotas;

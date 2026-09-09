@@ -1,148 +1,66 @@
-import React, { createContext, useContext, useState } from "react";
-
-/* ---------------------------------------------------------
-   Contexto global de pedidos.
-   Qualquer tela que precisar ler ou alterar pedidos usa o
-   hook usePedidos() em vez de receber tudo via props.
---------------------------------------------------------- */
-
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { useAutenticacao } from "./AutenticacaoContext.jsx";
+import { consultarPedidos, adaptarPedido } from "./services/pedidoService.js";
 const PedidosContext = createContext(null);
-
-let idCounter = 1;
-
 export function PedidosProvider({ children }) {
+  const { tokenInterno, fazerLogout } = useAutenticacao();
   const [pedidos, setPedidos] = useState([]);
-
-  /**
-   * Cria um novo pedido com status inicial "recebido".
-   * dadosPedido: { cliente, itens, dataEntrega, horarioEntrega, tipoEntrega,
-   *              observacoes, formaPagamento, statusPagamento, descontoPercentual,
-   *              valorDesconto, subtotal, total, endereco, estoqueBaixado }
-   *
-   * estoqueBaixado: true se o estoque já foi fisicamente descontado (via
-   * EstoqueContext) no momento da criação deste pedido — gravado uma única
-   * vez e nunca recalculado depois, mesmo que o interruptor global de
-   * baixa automática mude. É o que permite ao NovoPedidoModal saber quais
-   * pedidos ainda "pesam" sobre o estoque disponível e quais já foram
-   * contabilizados fisicamente.
-   */
-  const adicionarPedido = (dadosPedido) => {
-    const novoPedido = {
-      id: idCounter++,
-      status: "recebido", // recebido | em_producao | pronto
-      criadoEm: new Date().toISOString(),
-      ...dadosPedido,
-    };
-    setPedidos((prev) => [...prev, novoPedido]);
-    return novoPedido;
-  };
-
-  /** Avança: recebido -> em_producao -> pronto */
-  const avancarStatus = (id) => {
-    setPedidos((prev) =>
-      prev.map((o) => {
-        if (o.id !== id) return o;
-        if (o.status === "recebido") return { ...o, status: "em_producao" };
-        if (o.status === "em_producao") return { ...o, status: "pronto" };
-        return o;
-      })
-    );
-  };
-
-  /** Atualiza campos de um pedido existente (itens, endereço, pagamento etc). */
-  const atualizarPedido = (id, data) => {
-    setPedidos((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, ...data } : o))
-    );
-  };
-
-  /**
-   * Conclui a produção de um pedido. Em vez de remover o pedido, ele passa
-   * a ter um status pós-produção:
-   *  - "retirada" -> vai direto para "entregue"
-   *  - "entrega"  -> vai para "em_rota" (aguardando confirmação de entrega)
-   * O pedido continua aparecendo no início e seu faturamento é mantido.
-   */
-  const concluirPedido = (id) => {
-    setPedidos((prev) =>
-      prev.map((o) => {
-        if (o.id !== id) return o;
-        const nextStatus = o.tipoEntrega === "retirada" ? "entregue" : "em_rota";
-        return { ...o, status: nextStatus };
-      })
-    );
-  };
-
-  /** Confirma a entrega de um pedido que estava "em_rota". */
-  const marcarEntregue = (id) => {
-    setPedidos((prev) =>
-      prev.map((o) =>
-        o.id === id && o.status === "em_rota" ? { ...o, status: "entregue" } : o
-      )
-    );
-  };
-
-  /** Volta um passo: pronto -> em_producao -> recebido */
-  const reverterStatus = (id) => {
-    setPedidos((prev) =>
-      prev.map((o) => {
-        if (o.id !== id) return o;
-        if (o.status === "pronto") return { ...o, status: "em_producao" };
-        if (o.status === "em_producao") return { ...o, status: "recebido" };
-        return o;
-      })
-    );
-  };
-
-  const removerPedido = (id) => {
-    setPedidos((prev) => prev.filter((o) => o.id !== id));
-  };
-
-  /**
-   * Cancela um pedido. Diferente de removerPedido, o pedido não é apagado —
-   * ele passa a ter status "cancelado" e continua existindo no histórico
-   * (ex: para aparecer em relatórios), mas some das telas operacionais
-   * (Produção, Expedição) pois nenhuma delas reconhece esse status.
-   * motivo: motivo opcional informado por quem cancelou.
-   */
-  const cancelarPedido = (id, motivo) => {
-    setPedidos((prev) =>
-      prev.map((o) =>
-        o.id === id
-          ? {
-              ...o,
-              status: "cancelado",
-              motivoCancelamento: motivo || "",
-              canceladoEm: new Date().toISOString(),
-            }
-          : o
-      )
-    );
-  };
-
-  return (
-    <PedidosContext.Provider
-      value={{
-        pedidos,
-        adicionarPedido,
-        atualizarPedido,
-        avancarStatus,
-        reverterStatus,
-        concluirPedido,
-        marcarEntregue,
-        cancelarPedido,
-        removerPedido,
-      }}
-    >
-      {children}
-    </PedidosContext.Provider>
-  );
-}
-
-export function usePedidos() {
-  const ctx = useContext(PedidosContext);
-  if (!ctx) {
-    throw new Error("usePedidos precisa ser usado dentro de <PedidosProvider>");
+  const [acesso, setAcesso] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const operacoes = useRef(new Map());
+  const requisitar = useCallback(async (caminho, metodo = "GET", corpo, token = tokenInterno) => {
+    try { return await consultarPedidos(token, caminho, metodo, corpo); }
+    catch (falha) { if (falha.status === 401 && token === tokenInterno) await fazerLogout(); throw falha; }
+  }, [tokenInterno, fazerLogout]);
+  const requisitarRef = useRef(requisitar);
+  requisitarRef.current = requisitar;
+  const recarregar = useCallback(async () => {
+    try {
+      const { dados: acessoAtual } = await requisitarRef.current("/acesso");
+      setAcesso(acessoAtual);
+      if (acessoAtual.perfilAcesso === "GERENTE" || acessoAtual.permissoes.some((m) => ["PEDIDOS", "PRODUCAO", "EXPEDICAO", "RELATORIO"].includes(m))) {
+        const { dados } = await requisitarRef.current("/painel");
+        setPedidos(dados.map(adaptarPedido));
+      } else setPedidos([]);
+      setErro("");
+    } catch (falha) { setErro(falha.message); }
+    finally { setCarregando(false); }
+  }, []);
+  useEffect(() => {
+    if (tokenInterno) recarregar();
+    const temporizador = setInterval(recarregar, 15000);
+    return () => clearInterval(temporizador);
+  }, [tokenInterno, recarregar]);
+  async function executar(id, acao, campos = {}, token) {
+    const atual = pedidos.find((p) => p.id === id);
+    const caminho = id ? `/${id}${acao ? `/${acao}` : ""}` : "";
+    const corpo = { ...(id && { revisao: atual?.revisao }), ...campos };
+    const assinatura = JSON.stringify({ caminho, corpo });
+    let operacao = operacoes.current.get(assinatura);
+    if (operacao?.promessa) return operacao.promessa;
+    if (!operacao) { operacao = { chave: campos.chaveOperacao || crypto.randomUUID() }; operacoes.current.set(assinatura, operacao); }
+    setOcupado(true);
+    operacao.promessa = (async () => {
+      try {
+        const resultado = await requisitar(caminho, id && !acao ? "PUT" : "POST", { ...corpo, chaveOperacao: operacao.chave }, token);
+        operacoes.current.delete(assinatura);
+        await recarregar();
+        return resultado.dados;
+      } catch (falha) { setErro(falha.message); if (falha.status === 409) await recarregar(); throw falha; }
+      finally { operacao.promessa = null; setOcupado(false); }
+    })();
+    return operacao.promessa;
   }
-  return ctx;
+  const mudarStatus = (id, status) => executar(id, "status", { status }).catch(() => null);
+  const statusAtual = (id) => pedidos.find((p) => p.id === id);
+  return <PedidosContext.Provider value={{ pedidos, acesso, carregando, erro, ocupado, requisitar, recarregar, executar,
+    adicionarPedido: (dados) => executar(null, "", { dados }), atualizarPedido: (id, dados) => executar(id, "", { dados }),
+    avancarStatus: (id) => mudarStatus(id, statusAtual(id)?.status === "recebido" ? "EM_PRODUCAO" : "PRONTO"),
+    reverterStatus: (id) => mudarStatus(id, statusAtual(id)?.status === "pronto" ? "EM_PRODUCAO" : "RECEBIDO"),
+    concluirPedido: (id) => mudarStatus(id, statusAtual(id)?.tipoEntrega === "retirada" ? "ENTREGUE" : "EM_ROTA"),
+    marcarEntregue: (id) => mudarStatus(id, "ENTREGUE"), cancelarPedido: (id, motivo) => executar(id, "cancelamento", { motivo }).catch(() => null),
+  }}>{children}</PedidosContext.Provider>;
 }
+export function usePedidos() { const contexto = useContext(PedidosContext); if (!contexto) throw new Error("usePedidos exige PedidosProvider."); return contexto; }

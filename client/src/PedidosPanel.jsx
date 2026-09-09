@@ -17,6 +17,7 @@ import {
   PackageSearch,
 } from "lucide-react";
 import { usePedidos } from "./PedidosContext";
+import DetalhesPedido from "./DetalhesPedido.jsx";
 import EditarPedidoModal from "./EditarPedidoModal";
 import {
   FotosReferenciaBadge,
@@ -96,12 +97,15 @@ const paymentStatusMeta = {
    Main component
 --------------------------------------------------------- */
 export default function PedidosPanel({ onNovoPedido = () => {} }) {
-  const { pedidos, atualizarPedido } = usePedidos();
+  const { pedidos, atualizarPedido, carregando, erro } = usePedidos();
 
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [busca, setBusca] = useState("");
+  const [filtros, setFiltros] = useState({ status: "", inicio: "", fim: "" });
   const [showHistory, setShowHistory] = useState(false);
   const [pedidoEmEdicao, setPedidoEmEdicao] = useState(null);
+  const [detalhe, setDetalhe] = useState(null);
+  const [pagina, setPagina] = useState(1);
   const [imagemLightbox, setLightboxImage] = useState(null);
 
   const today = todayISO();
@@ -127,7 +131,7 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
   }, [pedidosDoDia, busca]);
 
   const dayStats = useMemo(() => {
-    const total = pedidosDoDia.reduce((sum, o) => sum + (o.total || 0), 0);
+    const total = pedidosDoDia.filter((o) => o.status !== "cancelado").reduce((sum, o) => sum + (o.total || 0), 0);
     const ativos = pedidosDoDia.filter(
       (o) => o.status !== "entregue" && o.status !== "cancelado"
     ).length;
@@ -150,8 +154,11 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
       });
   }, [pedidos, busca]);
 
-  const listToRender = showHistory ? pedidosHistorico : pedidosDoDiaFiltrados;
+  const listToRender = (showHistory ? pedidosHistorico : pedidosDoDiaFiltrados).filter((p) =>
+    (!filtros.status || p.status === filtros.status) && (!filtros.inicio || p.dataEntrega >= filtros.inicio) && (!filtros.fim || p.dataEntrega <= filtros.fim));
 
+  const paginaAtual = Math.min(pagina, Math.max(1, Math.ceil(listToRender.length / 20)));
+  const itensPagina = listToRender.slice((paginaAtual - 1) * 20, paginaAtual * 20);
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
       {/* Título + ações */}
@@ -260,6 +267,7 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
         </div>
       </div>
 
+      <details className="mb-4 text-sm text-slate-500"><summary className="cursor-pointer">Mais filtros</summary><div className="mt-3 flex flex-wrap items-center gap-3"><select aria-label="Filtrar status" value={filtros.status} onChange={(e) => setFiltros({ ...filtros, status: e.target.value })} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5"><option value="">Todos os status</option>{Object.entries({ recebido: "Recebido", em_producao: "Em produção", pronto: "Pronto", em_rota: "Em rota", entregue: "Entregue / retirado", cancelado: "Cancelado" }).map(([valor, nome]) => <option key={valor} value={valor}>{nome}</option>)}</select>{showHistory && <><label>De <input type="date" value={filtros.inicio} onChange={(e) => setFiltros({ ...filtros, inicio: e.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-2" /></label><label>Até <input type="date" value={filtros.fim} onChange={(e) => setFiltros({ ...filtros, fim: e.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-2" /></label></>}</div></details>
       {showHistory && (
         <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
           <History size={15} />
@@ -269,6 +277,8 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
         </div>
       )}
 
+      {erro && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{erro}</p>}
+      {carregando && <p role="status" className="mb-4 text-sm text-slate-400">Carregando pedidos…</p>}
       {/* Lista ou estado vazio */}
       {listToRender.length === 0 ? (
         <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -287,19 +297,22 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-          {listToRender.map((pedido, idx) => (
+          {itensPagina.map((pedido, idx) => (
             <PedidoRow
               key={pedido.id}
               pedido={pedido}
-              isLast={idx === listToRender.length - 1}
+              isLast={idx === itensPagina.length - 1}
               showDate={showHistory}
               onEdit={() => setPedidoEmEdicao(pedido)}
+              onDetails={() => setDetalhe(pedido.id)}
               onViewImage={setLightboxImage}
             />
           ))}
         </div>
       )}
 
+      <div className="mt-4 flex items-center justify-end gap-3 text-sm text-slate-500"><button disabled={paginaAtual <= 1} onClick={() => setPagina(paginaAtual - 1)}>Anterior</button><span>Página {paginaAtual}</span><button disabled={paginaAtual * 20 >= listToRender.length} onClick={() => setPagina(paginaAtual + 1)}>Próxima</button></div>
+      {detalhe && <DetalhesPedido id={detalhe} onClose={() => setDetalhe(null)} />}
       {pedidoEmEdicao && (
         <EditarPedidoModal
           pedido={pedidoEmEdicao}
@@ -322,7 +335,7 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
 /* ---------------------------------------------------------
    Linha de pedido — usada tanto na lista do dia quanto no histórico
 --------------------------------------------------------- */
-function PedidoRow({ pedido, isLast, showDate, onEdit, onViewImage }) {
+function PedidoRow({ pedido, isLast, showDate, onEdit, onDetails, onViewImage }) {
   const meta = obterStatusPedido(pedido);
   const payMeta =
     paymentStatusMeta[pedido.statusPagamento] || paymentStatusMeta.pendente;
@@ -359,6 +372,7 @@ function PedidoRow({ pedido, isLast, showDate, onEdit, onViewImage }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-slate-900">
             {pedido.cliente?.nome}
+            {pedido.pendencia?.impedimentos?.length > 0 && <span className="text-xs text-amber-600">Atualização pendente</span>}
             {pedido.tipoEntrega === "retirada" ? (
               <span className="flex items-center gap-1 text-xs font-normal text-slate-400">
                 <Store size={12} /> Retirada
@@ -394,7 +408,9 @@ function PedidoRow({ pedido, isLast, showDate, onEdit, onViewImage }) {
         <span className="w-24 text-right text-sm font-bold text-slate-900">
           {formatBRL(pedido.total)}
         </span>
+        <button onClick={onDetails} className="text-xs font-semibold text-blue-600 hover:underline">Detalhes</button>
         <button
+          disabled={["entregue", "cancelado"].includes(pedido.status) || pedido.legado}
           onClick={onEdit}
           className="text-slate-400 transition-colors hover:text-blue-600"
           aria-label="Editar pedido"

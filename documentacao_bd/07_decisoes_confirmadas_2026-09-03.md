@@ -4,6 +4,8 @@
 
 Consolidação das respostas da doceria e das confirmações posteriores do usuário. A referência normativa completa é o [AGENTS.md](../AGENTS.md), nas seções de regras confirmadas. Este documento registra substituições e impactos no modelo, sem declarar funcionalidades como implementadas.
 
+**Atualização de 07/09/2026:** o [complemento de Pedidos](08_decisoes_pedidos_2026-09-07.md) prevalece sobre as pendências e restrições anteriores relativas a limites iniciais, escopo de estorno, total zero, arredondamento, atualização de pedidos abertos e adiamento das fotos. Este registro mantém o contexto histórico de 03/09/2026.
+
 **Revisão exclusivamente documental:** nenhum SQL, schema Prisma, política RLS, dado, endpoint ou componente foi alterado. As estruturas mencionadas abaixo são necessidades de modelagem, não uma migração aprovada ou executada.
 
 ## Decisões finais que substituem respostas anteriores

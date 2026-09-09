@@ -1,14 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ShoppingBag,
   TrendingUp,
   CheckCircle2,
   DollarSign,
   AlertCircle,
-  AlertTriangle,
   Plus,
   PackageSearch,
-  PackageMinus,
   Clock,
   Truck,
   Store,
@@ -17,19 +15,14 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { usePedidos } from "./PedidosContext";
-import { useProdutos } from "./ProdutosContext";
-import { useCombos } from "./CombosContext";
-import { useEstoque } from "./EstoqueContext";
-import { useConfiguracoes, DIAS_DA_SEMANA } from "./ConfiguracoesContext";
-import { categorias } from "./categoriasProdutos";
-import {
-  obterFaixaHora,
-  decomporItensPedido,
-  somarPorCategoria,
-  obterCategoriasExcedidas,
-  decomporItensPorProduto,
-  somarPorProduto,
-} from "./capacidade";
+
+
+
+import ConfiguracaoPedidosPanel from "./ConfiguracaoPedidosPanel.jsx";
+import ResumoFinanceiroPedidos from "./ResumoFinanceiroPedidos.jsx";
+import AlertasCapacidadePedidos from "./AlertasCapacidadePedidos.jsx";
+
+
 import {
   FotosReferenciaBadge,
   obterImagensReferenciaPedido,
@@ -76,12 +69,9 @@ function formatToday() {
 }
 
 export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
-  const { pedidos, marcarEntregue } = usePedidos();
-  const { produtos } = useProdutos();
-  const { combos } = useCombos();
-  const { obterEstoque } = useEstoque();
-  const { horarioFuncionamento, definirHorarioDia, limitesAlerta, definirLimite, baixaAutomaticaEstoque, alternarBaixaAutomaticaEstoque } =
-    useConfiguracoes();
+  const { pedidos, marcarEntregue, acesso, erro, carregando } = usePedidos();
+
+
 
   const [showSettings, setShowSettings] = useState(false);
   const [imagemLightbox, setLightboxImage] = useState(null);
@@ -92,71 +82,14 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
     (o) => o.status === "em_producao"
   ).length;
   const prontosCount = topedidosDoDia.filter((o) => o.status === "pronto").length;
-  const faturamento = topedidosDoDia.reduce((sum, o) => sum + o.total, 0);
+  const faturamento = topedidosDoDia.filter((o) => o.status !== "cancelado").reduce((sum, o) => sum + o.total, 0);
   const pendentesCount = topedidosDoDia.filter(
-    (o) => o.status !== "entregue"
+    (o) => o.status !== "entregue" && o.status !== "cancelado"
   ).length;
 
   const sortedToday = [...topedidosDoDia].sort((a, b) =>
     (a.horarioEntrega || "").localeCompare(b.horarioEntrega || "")
   );
-
-  /* -----------------------------------------------------------
-     Alerta de estoque insuficiente: compara o que já foi vendido
-     (em todos os pedidos, inclusive dentro de combos) com o estoque
-     disponível de cada produto.
-     - Com baixa automática ativada, o estoque já é descontado pedido
-       a pedido, então basta olhar se ficou negativo.
-     - Sem baixa automática, o estoque não muda sozinho, então soma-se
-       tudo que já foi vendido e compara com o que existe.
-  ----------------------------------------------------------- */
-  const alertasEstoqueInsuficiente = useMemo(() => {
-    const vendidoPorProduto = somarPorProduto(
-      decomporItensPorProduto(pedidos.flatMap((o) => o.itens), combos)
-    );
-    const alerts = [];
-    produtos.forEach((p) => {
-      const { quantidade } = obterEstoque(p.id);
-      const missing = baixaAutomaticaEstoque
-        ? Math.max(-quantidade, 0)
-        : Math.max((vendidoPorProduto[p.id] || 0) - quantidade, 0);
-      if (missing > 0) {
-        alerts.push({ idProduto: p.id, nome: p.nome, missing });
-      }
-    });
-    return alerts;
-  }, [pedidos, combos, produtos, obterEstoque, baixaAutomaticaEstoque]);
-
-  /* -----------------------------------------------------------
-     Alertas de capacidade: agrupa os pedidos de hoje por hora
-     (ex: tudo entre 08:00 e 08:59 cai no bucket "08"), decompõe
-     os itens (inclusive combos) em unidades reais por categoria
-     e compara com o limite configurado para cada categoria.
-  ----------------------------------------------------------- */
-  const capacityAlerts = useMemo(() => {
-    const buckets = {};
-    // Pedidos já concluídos (entregues/retirados) não ocupam mais
-    // capacidade de produção, então saem da conta assim que mudam de
-    // status — é isso que faz o alerta da hora sumir.
-    topedidosDoDia
-      .filter((o) => o.status !== "entregue")
-      .forEach((o) => {
-        const hb = obterFaixaHora(o.horarioEntrega);
-        if (!hb) return;
-        if (!buckets[hb]) buckets[hb] = [];
-        buckets[hb].push(o);
-      });
-
-    const alerts = [];
-    Object.entries(buckets).forEach(([faixaHora, pedidosNaHora]) => {
-      const itens = pedidosNaHora.flatMap((o) => o.itens);
-      const totals = somarPorCategoria(decomporItensPedido(itens, produtos, combos));
-      const exceeded = obterCategoriasExcedidas(totals, limitesAlerta);
-      exceeded.forEach((e) => alerts.push({ faixaHora, ...e }));
-    });
-
-    return alerts.sort((a, b) => a.faixaHora.localeCompare(b.faixaHora));
-  }, [topedidosDoDia, produtos, combos, limitesAlerta]);
 
   const stats = [
     {
@@ -201,37 +134,14 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={alternarBaixaAutomaticaEstoque}
-            title="Quando ativado, a quantidade dos produtos (inclusive dentro de combos) é descontada automaticamente do estoque assim que um pedido é criado"
-            className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors ${
-              baixaAutomaticaEstoque
-                ? "bg-green-100 text-green-700 hover:bg-green-200"
-                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <PackageMinus size={16} />
-            Baixa Automática de Estoque
-            <span
-              className={`ml-1 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-                baixaAutomaticaEstoque ? "bg-green-500" : "bg-slate-300"
-              }`}
-            >
-              <span
-                className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                  baixaAutomaticaEstoque ? "translate-x-4" : "translate-x-0"
-                }`}
-              />
-            </span>
-          </button>
-          <button
+          {acesso?.perfilAcesso === "GERENTE" &&           <button
             onClick={() => setShowSettings((s) => !s)}
             className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
           >
             <Settings size={16} />
             Horários & Alertas
             {showSettings ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          </button>
+          </button>}
           <button
             onClick={onNovoPedido}
             className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition-colors hover:bg-blue-700"
@@ -242,152 +152,11 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
         </div>
       </div>
 
-      {/* Configurações de horário de funcionamento + limites de alerta */}
-      {showSettings && (
-        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* Horário de funcionamento */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <h3 className="mb-1 text-sm font-bold text-slate-900">
-              Horário de Funcionamento
-            </h3>
-            <p className="mb-4 text-xs text-slate-400">
-              Define os horários agendáveis (a cada 15 min) na hora de criar um
-              pedido, para cada dia da semana.
-            </p>
-            <div className="space-y-2">
-              {DIAS_DA_SEMANA.map((day) => {
-                const cfg = horarioFuncionamento[day.key];
-                return (
-                  <div
-                    key={day.key}
-                    className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5"
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        definirHorarioDia(day.key, "enabled", !cfg.enabled)
-                      }
-                      className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        cfg.enabled
-                          ? "bg-blue-600 text-white"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
-                    >
-                      {day.label}
-                    </button>
-
-                    {cfg.enabled ? (
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <input
-                          type="time"
-                          value={cfg.start}
-                          onChange={(e) =>
-                            definirHorarioDia(day.key, "start", e.target.value)
-                          }
-                          step={900}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-slate-400">até</span>
-                        <input
-                          type="time"
-                          value={cfg.end}
-                          onChange={(e) =>
-                            definirHorarioDia(day.key, "end", e.target.value)
-                          }
-                          step={900}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400">Fechado</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Limites de alerta por categoria */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <h3 className="mb-1 text-sm font-bold text-slate-900">
-              Limite de Alerta por Hora
-            </h3>
-            <p className="mb-4 text-xs text-slate-400">
-              Define, por categoria, a partir de quantos itens (unidades
-              reais) numa mesma hora deve aparecer o alerta de capacidade.
-              Ex: +500 itens de Salgados. Deixe vazio para não alertar.
-            </p>
-            <div className="space-y-2">
-              {categorias.map((cat) => (
-                <div
-                  key={cat.key}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5"
-                >
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                    <cat.icon size={15} style={{ color: cat.color }} />
-                    {cat.label}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">+</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="Sem limite"
-                      value={limitesAlerta[cat.key] ?? ""}
-                      onChange={(e) => definirLimite(cat.key, e.target.value)}
-                      className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-xs text-slate-400">itens/h</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Alerta de estoque insuficiente para atender os pedidos */}
-      {alertasEstoqueInsuficiente.length > 0 && (
-        <div className="mb-6 space-y-2">
-          {alertasEstoqueInsuficiente.map((a) => (
-            <div
-              key={a.idProduto}
-              className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4"
-            >
-              <AlertTriangle size={20} className="shrink-0 text-red-500" />
-              <div className="text-sm text-red-700">
-                "<strong>{a.nome}</strong>" insuficiente(s) para atender os
-                pedidos{" "}
-                <span className="text-red-500">
-                  (faltam {a.missing.toLocaleString("pt-BR")})
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Alertas de capacidade ativos hoje */}
-      {capacityAlerts.length > 0 && (
-        <div className="mb-6 space-y-2">
-          {capacityAlerts.map((a, i) => (
-            <div
-              key={`${a.faixaHora}-${a.categoria}-${i}`}
-              className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4"
-            >
-              <AlertTriangle size={20} className="shrink-0 text-red-500" />
-              <div className="text-sm text-red-700">
-                <strong>
-                  {a.faixaHora}:00–{a.faixaHora}:59
-                </strong>{" "}
-                — {a.quantidade.toLocaleString("pt-BR")} itens de{" "}
-                <strong>{a.categoria}</strong> agendados (limite: +
-                {a.threshold})
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {showSettings && acesso?.perfilAcesso === "GERENTE" && <ConfiguracaoPedidosPanel />}
+      {erro && <p role="alert" className="bg-red-50 p-3 text-red-700">{erro}</p>}
+      {carregando && <p>Carregando pedidos…</p>}
+      <details className="mb-4 text-sm text-slate-500"><summary className="cursor-pointer">Recebimentos, estornos e excedentes</summary><div className="mt-3"><ResumoFinanceiroPedidos dataInicio={today} dataFim={today} /></div></details>
+      <AlertasCapacidadePedidos />
 
       {/* Stats bar */}
       <div className="mb-8 rounded-2xl border border-slate-100 bg-white px-8 py-5 shadow-sm">

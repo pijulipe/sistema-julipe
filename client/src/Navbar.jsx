@@ -36,6 +36,7 @@ export default function Navbar({
   onNavigate,
   onSair = () => {},
   saindo = false,
+  podeAbrir = () => true,
 }) {
   return (
     <header className="bg-[#0f172a] px-4">
@@ -48,7 +49,7 @@ export default function Navbar({
         </div>
 
         <nav className="flex items-center gap-1">
-          {navItems.map(({ key, label, icon: Icon, clickable }) => {
+          {navItems.filter(({ key }) => podeAbrir(key)).map(({ key, label, icon: Icon, clickable }) => {
             const isActive = key === ativo;
             return (
               <button

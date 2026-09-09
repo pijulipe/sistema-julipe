@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Check } from "lucide-react";
+import ExcecoesFuncionario from "./ExcecoesFuncionario.jsx";
 import { useFuncionarios, PERFIS_ACESSO } from "./FuncionariosContext";
 
 const MODULOS_PERMISSAO = [
@@ -152,6 +153,7 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
         </div>
 
         <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5">
+          {funcionario && <ExcecoesFuncionario key={funcionario.idUsuario} funcionario={funcionario} />}
           {erro && (
             <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
               {erro}

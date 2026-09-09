@@ -1,0 +1,42 @@
+import { Router } from "express";
+import { FotoPedidoRepository } from "../repositories/fotoPedidoRepository.js";
+import { FotoPedidoService } from "../services/fotoPedidoService.js";
+import { supabaseAdmin } from "../database/supabaseAdmin.js";
+import { PedidoRepository } from "../repositories/pedidoRepository.js";
+import { UsuarioRepository } from "../repositories/usuarioRepository.js";
+import { PedidoService } from "../services/pedidoService.js";
+import { AutorizacaoPedidoService } from "../services/autorizacaoPedidoService.js";
+import { ambiente } from "../config/ambiente.js";
+import { PedidoController } from "../controllers/pedidoController.js";
+import { autenticar } from "../middlewares/autenticar.js";
+import { carregarAcessoAtual } from "../middlewares/carregarAcessoAtual.js";
+import { validar } from "../middlewares/validar.js";
+import { esquemaPedido, listaPedidoSchema, consultaPedidoSchema, historicoPedidoSchema, previaPedidoSchema, autorizacaoNovoPedidoSchema, uploadFotoPedidoSchema, confirmarFotoPedidoSchema, fotosPedidoSchema, vendaPedidoSchema } from "../validators/pedidoValidator.js";
+
+const rotas = Router();
+export const repositorioPedidos = new PedidoRepository();
+const usuariosPedidos = new UsuarioRepository();
+const autorizacoesPedidos = new AutorizacaoPedidoService(ambiente.JWT_SECRET);
+export const servicoPedidos = new PedidoService(repositorioPedidos, autorizacoesPedidos, usuariosPedidos);
+export const fotosPedidos = new FotoPedidoService(new FotoPedidoRepository(), supabaseAdmin.storage.from("referencias-pedidos"));
+const controller = new PedidoController(servicoPedidos, fotosPedidos);
+rotas.use(autenticar, carregarAcessoAtual(new UsuarioRepository()));
+rotas.post("/previa", validar(previaPedidoSchema), controller.previa);
+rotas.get("/acesso", controller.acesso);
+rotas.get("/painel", controller.painel);
+rotas.post("/autorizacoes-novo", validar(autorizacaoNovoPedidoSchema), controller.autorizarNovo);
+rotas.post("/fotos/upload", validar(uploadFotoPedidoSchema), controller.upload);
+rotas.post("/fotos/confirmar", validar(confirmarFotoPedidoSchema), controller.confirmarFoto);
+rotas.get("/:id/fotos", validar(fotosPedidoSchema), controller.consultarFotos);
+rotas.get("/indicadores", validar(listaPedidoSchema), controller.indicadores);
+rotas.get("/capacidade", controller.capacidade);
+rotas.get("/venda", validar(vendaPedidoSchema), controller.venda);
+rotas.get("/", validar(listaPedidoSchema), controller.listar);
+rotas.post("/", validar(esquemaPedido("criar")), controller.acao("criar"));
+rotas.get("/:id", validar(consultaPedidoSchema), controller.buscar);
+rotas.get("/:id/historico", validar(historicoPedidoSchema), controller.historico);
+rotas.put("/:id", validar(esquemaPedido("editar")), controller.acao("editar"));
+for (const [caminho, acao] of [["status", "status"], ["cancelamento", "cancelar"], ["reabertura", "reabrir"], ["pagamentos", "pagamento"], ["estornos", "estorno"], ["autorizacao-desconto", "autorizar"]]) {
+  rotas.post(`/:id/${caminho}`, validar(esquemaPedido(acao)), controller.acao(acao));
+}
+export default rotas;

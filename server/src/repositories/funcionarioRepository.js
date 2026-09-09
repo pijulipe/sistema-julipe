@@ -1,6 +1,7 @@
 import { prisma } from "../database/prisma.js";
 import { supabaseAdmin } from "../database/supabaseAdmin.js";
 import { moduloValido, chavesModulos } from "../utils/modulos.js";
+import { acessoEfetivo } from "../utils/acessoPedido.js";
 
 export class FuncionarioRepository {
   async criarContaAutenticacao(email, senha) {
@@ -48,6 +49,11 @@ export class FuncionarioRepository {
         deletadoEm: null,
       },
       select: {
+        cargo: true,
+        excecoesModulos: true,
+        cancelamentoIndividual: true,
+        descontoIndividual: true,
+        estornoIndividual: true,
         idUsuario: true,
         nome: true,
         email: true,
@@ -81,7 +87,15 @@ export class FuncionarioRepository {
       perfilAcesso: funcionario.perfilAcesso,
       ativo: funcionario.ativo,
       permissoes: funcionario.perfilAcesso === "GERENTE" ? [] : permissoes,
+      cargo: funcionario.cargo,
+      excecoesModulos: funcionario.excecoesModulos,
+      permissoesEfetivas: acessoEfetivo({ ...funcionario, permissoes }).permissoes,
     };
+  }
+
+  async substituirExcecoes(idUsuario, excecoesModulos) {
+    const atualizado = await prisma.usuario.update({ where: { idUsuario }, data: { excecoesModulos }, select: { idUsuario: true, excecoesModulos: true } });
+    return atualizado;
   }
 
   async listar({ busca, perfilAcesso, ativo, pagina, limite }) {

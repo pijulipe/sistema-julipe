@@ -1,13 +1,14 @@
 import { prisma } from "../database/prisma.js";
+import { acessoEfetivo } from "../utils/acessoPedido.js";
 
 function serializar(usuario) {
   return usuario
-    ? {
+    ? acessoEfetivo({
         ...usuario,
         permissoes: usuario.permissoesFuncionario.map(
           (permissao) => permissao.modulo,
         ),
-      }
+      })
     : null;
 }
 
@@ -22,6 +23,7 @@ export class UsuarioRepository {
       },
 
       include: {
+        cargo: true,
         permissoesFuncionario: { where: { itemAtivo: true, deletadoEm: null } },
       },
     });
@@ -38,6 +40,12 @@ export class UsuarioRepository {
       },
 
       select: {
+        nome: true,
+        cargo: true,
+        excecoesModulos: true,
+        cancelamentoIndividual: true,
+        descontoIndividual: true,
+        estornoIndividual: true,
         idUsuario: true,
         perfilAcesso: true,
         permissoesFuncionario: { where: { itemAtivo: true, deletadoEm: null }, select:{ modulo: true } },
@@ -50,10 +58,11 @@ export class UsuarioRepository {
     const permissoesModulo = usuario.permissoesFuncionario.map((permissao) =>
       permissao.modulo.trim().toUpperCase(),
     );
-    return {
+    return acessoEfetivo({
+      ...usuario,
       idUsuario: usuario.idUsuario,
       perfilAcesso: usuario.perfilAcesso,
       permissoes: permissoesModulo,
-    };
+    });
   }
 }

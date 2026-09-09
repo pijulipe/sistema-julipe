@@ -13,9 +13,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { usePedidos } from "./PedidosContext";
-import { useEstoque } from "./EstoqueContext";
-import { useCombos } from "./CombosContext";
-import { decomporItensPorProduto, somarPorProduto } from "./capacidade";
+
+
+
 import EditarPedidoModal from "./EditarPedidoModal";
 import { MiniaturaImagemReferencia, LightboxReferencia } from "./FotosReferencia";
 
@@ -93,8 +93,6 @@ const columns = [
 export default function ProducaoPanel() {
   const { pedidos, avancarStatus, reverterStatus, atualizarPedido, cancelarPedido } =
     usePedidos();
-  const { combos } = useCombos();
-  const { ajustarQuantidade } = useEstoque();
   const [dateFilter, setDateFilter] = useState("hoje");
   const [busca, setBusca] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
@@ -134,23 +132,10 @@ export default function ProducaoPanel() {
     pronto: filtrados.filter((o) => o.status === "pronto"),
   };
 
-  /**
-   * Confirma o cancelamento do pedido selecionado. Se o estoque já havia
-   * sido descontado fisicamente na criação do pedido (estoqueBaixado),
-   * devolve as quantidades correspondentes antes de marcar como cancelado.
-   */
-  const handleConfirmarCancelamento = () => {
+  const handleConfirmarCancelamento = async () => {
     if (!pedidoCancelando) return;
-    if (pedidoCancelando.estoqueBaixado) {
-      const totals = somarPorProduto(
-        decomporItensPorProduto(pedidoCancelando.itens || [], combos)
-      );
-      Object.entries(totals).forEach(([idProduto, quantidade]) => {
-        ajustarQuantidade(Number(idProduto), quantidade);
-      });
-    }
-    cancelarPedido(pedidoCancelando.id);
-    setPedidoCancelando(null);
+    const resultado = await cancelarPedido(pedidoCancelando.id);
+    if (resultado) setPedidoCancelando(null);
   };
 
   return (
@@ -298,8 +283,7 @@ function ModalCancelarPedido({ pedido, onClose, onConfirm }) {
           </h2>
           <p className="mt-1.5 text-sm text-slate-500">
             O pedido de <span className="font-semibold text-slate-700">{pedido.cliente?.nome}</span> será
-            marcado como cancelado e sairá do painel de produção. Essa ação
-            não pode ser desfeita.
+            marcado como cancelado e sairá do painel de produção. Somente o gerente poderá reabrir o pedido.
           </p>
         </div>
 

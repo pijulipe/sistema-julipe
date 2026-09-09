@@ -138,6 +138,14 @@ model limites_horario {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model pedidos {
+  revisao                 Int                   @default(0)
+  versao_vigente          Int                   @default(0)
+  fotografia             Json?
+  pendencia              Json?
+  assinatura_catalogo    String?
+  versoesVenda           PedidoVersao[]
+  pagamentosVenda        PagamentoPedido[]
+  eventosVenda           EventoPedido[]
   id_pedido                BigInt                @id(map: "pk_pedidos") @default(autoincrement())
   codigo_comanda           String?               @db.VarChar(50)
   id_cliente               BigInt?
@@ -244,6 +252,12 @@ model propriedades_pedido {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Usuario {
+  idCargo                Int?                   @map("id_cargo")
+  cargo                  Cargo?                 @relation(fields: [idCargo], references: [idCargo], onDelete: Restrict)
+  excecoesModulos         Json                   @default("{}") @map("excecoes_modulos")
+  cancelamentoIndividual Boolean?               @map("cancelamento_individual")
+  descontoIndividual     Decimal?               @map("desconto_individual") @db.Decimal(5, 2)
+  estornoIndividual      Decimal?               @map("estorno_individual") @db.Decimal(12, 2)
   idUsuario              String                 @id @default(dbgenerated("gen_random_uuid()")) @map("id_usuario") @db.Uuid
   nome                   String                 @db.VarChar(255)
   email                  String                 @unique @db.VarChar(255)
@@ -292,4 +306,106 @@ enum tipo_entrega_enum {
   ENTREGA
   RETIRADA
   CONSUMO_LOCAL
+}
+model PedidoVersao {
+  idPedido BigInt @map("id_pedido")
+  versao Int
+  fotografia Json
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  pedido pedidos @relation(fields: [idPedido], references: [id_pedido], onDelete: Restrict)
+  @@id([idPedido, versao])
+  @@map("versoes_pedido")
+}
+
+model PagamentoPedido {
+  idPagamento String @id @default(uuid()) @map("id_pagamento") @db.Uuid
+  idPedido BigInt @map("id_pedido")
+  valorCentavos BigInt @map("valor_centavos")
+  forma String @db.VarChar(10)
+  situacao String @db.VarChar(12)
+  realizadoEm DateTime @map("realizado_em") @db.Timestamptz(6)
+  idAutor String @map("id_autor") @db.Uuid
+  nomeAutor String @map("nome_autor")
+  pedido pedidos @relation(fields: [idPedido], references: [id_pedido], onDelete: Restrict)
+  estornos EstornoPedido[]
+  @@index([idPedido])
+  @@map("pagamentos_pedido")
+}
+
+model EstornoPedido {
+  idEstorno String @id @default(uuid()) @map("id_estorno") @db.Uuid
+  idPagamento String @map("id_pagamento") @db.Uuid
+  valorCentavos BigInt @map("valor_centavos")
+  realizadoEm DateTime @default(now()) @map("realizado_em") @db.Timestamptz(6)
+  idAutor String @map("id_autor") @db.Uuid
+  nomeAutor String @map("nome_autor")
+  motivo String?
+  pagamento PagamentoPedido @relation(fields: [idPagamento], references: [idPagamento], onDelete: Restrict)
+  @@index([idPagamento])
+  @@map("estornos_pedido")
+}
+
+model EventoPedido {
+  idEvento BigInt @id @default(autoincrement()) @map("id_evento")
+  idPedido BigInt @map("id_pedido")
+  versao Int
+  acao String
+  idAutor String? @map("id_autor") @db.Uuid
+  nomeAutor String @map("nome_autor")
+  dados Json
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  pedido pedidos @relation(fields: [idPedido], references: [id_pedido], onDelete: Restrict)
+  @@index([idPedido, idEvento])
+  @@map("eventos_pedido")
+}
+
+model OperacaoPedido {
+  chave String @id
+  assinatura String
+  resposta Json
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  @@map("operacoes_pedido")
+}
+
+model Cargo {
+  idCargo Int @id @default(autoincrement()) @map("id_cargo")
+  nome String @unique
+  modulos String[]
+  podeCancelarPedido Boolean? @map("pode_cancelar_pedido")
+  limiteDesconto Decimal @default(0) @map("limite_desconto") @db.Decimal(5, 2)
+  limiteEstorno Decimal @default(0) @map("limite_estorno") @db.Decimal(12, 2)
+  ativo Boolean @default(true)
+  usuarios Usuario[]
+  @@map("cargos")
+}
+
+model ExpedientePedido {
+  diaSemana Int @id @map("dia_semana")
+  aberto Boolean
+  inicio String @db.VarChar(5)
+  fim String @db.VarChar(5)
+  @@map("expediente_pedidos")
+}
+
+model CapacidadeCategoria {
+  idCategoria Int @id @map("id_categoria")
+  limite Int
+  @@map("capacidade_categorias")
+}
+
+model AlteracaoCatalogoPedido {
+  ultimoPedido BigInt @default(0) @map("ultimo_pedido")
+  idAlteracao BigInt @id @default(autoincrement()) @map("id_alteracao")
+  entidade String
+  idCadastro Int @map("id_cadastro")
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  @@map("alteracoes_catalogo_pedidos")
+}
+
+model FotoPedido {
+  caminho String @id
+  idAutor String @map("id_autor") @db.Uuid
+  confirmada Boolean @default(false)
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  @@map("fotos_pedido")
 }

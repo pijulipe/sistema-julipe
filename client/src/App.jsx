@@ -1,10 +1,9 @@
 import React, { useState } from "react";
-import { PedidosProvider } from "./PedidosContext";
+import { PedidosProvider, usePedidos } from "./PedidosContext";
 import { ProdutosProvider } from "./ProdutosContext";
 import { CombosProvider } from "./CombosContext";
 import { ClientesProvider } from "./ClientesContext";
 import { EstoqueProvider } from "./EstoqueContext";
-import { ConfiguracoesProvider } from "./ConfiguracoesContext";
 import { FuncionariosProvider } from "./FuncionariosContext";
 import Navbar from "./Navbar";
 import DoceriaJulipeDashboard from "./DoceriaJulipeDashboard";
@@ -24,7 +23,10 @@ import { useAutenticacao } from "./AutenticacaoContext.jsx";
 
 function AppContent() {
   // "home" | "pedidos" | "producao" | "produto" | "combos" | "clientes" | "estoque" | "expedicao" | "relatorio" | "funcionarios" | "novoPedido"
-  const [view, setView] = useState("home");
+  const [telaSelecionada, setView] = useState("home");
+  const { acesso, erro: erroPedidos, carregando: carregandoPedidos } = usePedidos();
+  const podeAbrir = (tela) => tela === "home" || acesso?.perfilAcesso === "GERENTE" || (tela === "funcionarios" ? acesso?.perfilAcesso === "ADMINISTRADOR" : acesso?.permissoes.includes(tela === "novoPedido" ? "PEDIDOS" : tela.toUpperCase()));
+  const view = podeAbrir(telaSelecionada) ? telaSelecionada : "home";
   // Guarda de qual tela o "Novo Pedido" foi aberto, para voltar pra lá ao
   // fechar o modal — funciona tanto a partir do Início quanto de Pedidos.
   const [telaAnterior, setTelaAnterior] = useState("home");
@@ -57,7 +59,10 @@ function AppContent() {
         onNavigate={setView}
         onSair={lidarComLogout}
         saindo={saindo}
+        podeAbrir={podeAbrir}
       />
+      {carregandoPedidos && <p role="status" className="p-4">Carregando pedidos e acesso…</p>}
+      {erroPedidos && view !== "home" && <p role="alert" className="m-4 rounded-lg bg-red-50 p-3 text-red-700">{erroPedidos}</p>}
 
       {erroLogout && (
         <div className="mx-auto mt-4 max-w-7xl rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
@@ -106,7 +111,6 @@ export default function App() {
   }
 
   return (
-    <ConfiguracoesProvider>
       <PedidosProvider>
         <ProdutosProvider>
           <CombosProvider>
@@ -120,6 +124,5 @@ export default function App() {
           </CombosProvider>
         </ProdutosProvider>
       </PedidosProvider>
-    </ConfiguracoesProvider>
   );
 }

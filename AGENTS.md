@@ -1,5 +1,12 @@
 # Contexto Oficial do Projeto — JULIPE
 
+> Diretriz visual confirmada pelo usuário: preservar o design existente no Git (layout, cores, espaçamentos e estilo dos componentes). Campos e ações necessários às novas funcionalidades podem ser acrescentados seguindo o mesmo padrão. Não redesenhar telas sem solicitação explícita.
+
+
+
+> Atualização de implementação local em 08/09/2026: Pedidos, cargos, exceções, capacidade, pagamentos, estornos e fotos possuem código integrado. Migração e Storage remotos ainda não foram aplicados. As descrições de protótipo abaixo registram o estado anterior; consulte `documentacao_bd/10_entrega_pedidos_2026-09-08.md` para escopo implementado, evidências e limitações. As decisões de negócio continuam vigentes.
+
+
 > Documento principal de arquitetura, desenvolvimento e regras de negócio.
 >
 > Implementação revisada em 02/09/2026. Regras de negócio consolidadas com o usuário em 03/09/2026.
@@ -327,7 +334,7 @@ Esta lista descreve o banco existente, não o modelo futuro aprovado de negócio
 - A reativação de combo é manual e revalida composição não vazia, produtos não repetidos, produtos ativos e não excluídos, quantidades positivas e múltiplos mínimos vigentes. Combo excluído não pode ser reativado pelo fluxo comum.
 - Nome, descrição, preço e composição podem ser editados. Alterar efetivamente nome, preço ou composição incrementa a versão; alterar somente a descrição não incrementa.
 - Atualizações idempotentes não incrementam versão. A comparação da composição considera produtos e quantidades independentemente da ordem recebida.
-- Futuras vendas de combos preservarão uma fotografia histórica com nome, preço, versão, produtos e quantidades vendidos. Alterações posteriores nunca modificarão pedidos antigos.
+- Futuras vendas de combos preservarão uma fotografia histórica com nome, preço, versão, produtos e quantidades vendidos. Conforme revisão de 07/09/2026, pedidos abertos acompanham alterações cadastrais; concluídos preservam a última versão do pedido, com histórico das versões anteriores.
 - O histórico futuro distinguirá alteração posterior de nome, preço ou composição, inatividade e exclusão lógica. Alteração somente de descrição não indicará mudança histórica.
 - A estrutura da fotografia histórica será definida e implementada com o módulo de Pedidos; nesta etapa o cadastro mantém uma versão persistida e referências restritivas, sem criar endpoints ou fluxos de Pedidos.
 - O módulo exige a permissão `COMBOS`. `GERENTE` possui acesso funcional total e os demais perfis precisam da permissão individual ativa.
@@ -335,7 +342,8 @@ Esta lista descreve o banco existente, não o modelo futuro aprovado de negócio
 
 ## Fotos de referência dos pedidos
 
-- Futuramente, cada item do pedido poderá possuir uma foto de referência, limitada a no máximo 10 itens com foto por pedido. Essa regra é independente da foto cadastral do produto e ainda não deve ser implementada nas tabelas ou fluxos de pedidos.
+- Cada item do pedido poderá possuir uma foto de referência, limitada a no máximo 10 itens com foto por pedido. Essa regra é independente da foto cadastral do produto e foi incluída no escopo da implementação de Pedidos em 07/09/2026. O fluxo de armazenamento ainda exige proposta técnica.
+- Fotos de referência aceitam PNG, JPG/JPEG e WebP, com tamanho máximo de 5 MB por foto.
 
 ## Usuários e permissões
 
@@ -376,7 +384,7 @@ Esta lista descreve o banco existente, não o modelo futuro aprovado de negócio
 - `podeCancelarPedido` é uma capacidade de ação adicional ao acesso a `PEDIDOS`, não uma tela ou módulo novo.
 - Atendente não pode cancelar por padrão; administrador pode por padrão; gerente sempre pode. Cargo e configuração individual podem alterar essa capacidade para não gerentes, prevalecendo a individual.
 - Ter somente `PEDIDOS` não basta para cancelar: também é necessária a capacidade efetiva de cancelamento. Esta regra substitui a resposta anterior de que todo usuário de Pedidos poderia cancelar.
-- Limites de desconto e estorno são definidos por cargo e podem ser sobrescritos individualmente pelo gerente. A configuração individual prevalece. Valores iniciais e representação dos limites serão tratados na proposta de implementação, sem presumir acesso ilimitado.
+- Limites de desconto e estorno são definidos por cargo e podem ser sobrescritos individualmente pelo gerente. A configuração individual prevalece. Sem configuração, não gerentes começam com desconto de 0% e estorno de R$ 0. O limite de estorno é em reais, acumulado por pagamento; a representação será proposta tecnicamente.
 
 `permissoes_funcionario` resolveu permissões individuais simples e já protege clientes. Não resolve cargos configuráveis, herança nem exceções negativas; o modelo combinado continua incompleto.
 
@@ -405,7 +413,7 @@ Esta lista descreve o banco existente, não o modelo futuro aprovado de negócio
 - Formas oficiais: débito, crédito e Pix. Um pedido admite vários pagamentos, formas diferentes e datas diferentes.
 - Cada lançamento registra valor, forma, data/hora e usuário responsável. Situações dos lançamentos: `CONFIRMADO`, `REJEITADO` e `ESTORNADO`.
 - Situação financeira geral do pedido: `PENDENTE`, `PARCIAL` ou `PAGO`, calculada sobre os valores confirmados, descontados os estornos; rejeitados não contam como recebimento.
-- Para pedido de total positivo: valor líquido pago igual a zero resulta em `PENDENTE`; positivo inferior ao total resulta em `PARCIAL`; igual ou superior ao total resulta em `PAGO`. Tratamento de pedido de total zero e detalhes de arredondamento serão explicitados na proposta técnica.
+- Pedidos devem conter itens e possuir total maior que zero. Valor líquido pago igual a zero resulta em `PENDENTE`; positivo inferior ao total resulta em `PARCIAL`; igual ou superior ao total resulta em `PAGO`. Valores monetários são arredondados para duas casas decimais; a etapa e o critério exatos serão explicitados na proposta técnica.
 - Estorno parcial mantém contabilizada a parcela não devolvida; não tratar o lançamento inteiro como devolvido ao registrar somente parte. A representação desse saldo será definida na proposta física.
 - Cancelamento é status do pedido e não apaga pagamentos. Valores já recebidos são sinalizados para estorno manual e permanecem registrados até o estorno; não há devolução automática.
 - Gerente configura limites de estorno por cargo e pode sobrescrevê-los por funcionário. Não é uma operação exclusiva do gerente: outros funcionários obedecem ao limite efetivo configurado.
@@ -455,13 +463,30 @@ Questões exclusivas de estoque podem aguardar o planejamento previsto para o pr
 
 - Propor persistência para auditoria, cargos/exceções, capacidades, limites, pagamentos/estornos, endereço histórico, ordem dos descontos e capacidade por categoria.
 - Definir compatibilidade entre `CLIENTE` (catálogo aprovado) e `CLIENTES` (chave existente), sem renomeação automática.
-- Explicitar valores iniciais dos limites, unidade/escopo do limite de estorno, casos de total zero, arredondamento e contratos de atualização; não transformar ausência de configuração em concessão ilimitada por suposição.
+- Aplicar os valores iniciais, escopo de estorno e restrição de total positivo confirmados em 07/09/2026; propor etapa/critério de arredondamento e contratos de atualização, sem presumir concessões ilimitadas.
 - Planejar preservação dos pedidos existentes e fotografia histórica de combos conforme as regras já confirmadas.
 - Proposta estrutural deve separar decisões técnicas de qualquer nova regra de negócio que necessite validação. Nenhuma tabela sugerida na conversa foi criada por esta revisão.
 
 ---
 
 # Diretrizes de Evolução
+
+## Complemento de Pedidos confirmado em 07/09/2026 — ainda não implementado
+
+- Todos os campos de negócio do pedido são editáveis, inclusive após início da produção ou recebimento de pagamento. Concluídos e cancelados exigem reabertura antes da edição; permanece exclusiva do gerente e retorna para `EM_PRODUCAO`. Isso não autoriza apagar auditoria ou sobrescrever lançamentos financeiros.
+- Pedidos abertos acompanham os novos dados de produtos e combos, incluindo preço, múltiplo mínimo e composição, recalculando o total mesmo com pagamentos existentes. Concluídos preservam a última versão do pedido, não necessariamente a criação. Na reabertura, mudanças existentes devem ser aplicadas e salvas, preservando histórico. Esta decisão substitui a imutabilidade anteriormente prevista para combos em todos os pedidos antigos.
+- Inativação de produto ou combo deve ser sinalizada nos pedidos abertos que o utilizam, sem fechar o pedido. Isso não autoriza inclusão nova de item inativo. Se um novo múltiplo mínimo tornar a quantidade incompatível em pedido aberto, exigir que o funcionário escolha uma quantidade válida antes de efetivar a atualização, sem ajuste automático. Pedidos concluídos preservam as quantidades históricas.
+- Desconto efetivo deve ser inferior a 100% e o total deve permanecer positivo. Alteração posterior do pedido que continue exigindo autorização invalida a autorização anterior e não pode ser efetivada sem nova autorização do gerente. A coordenação desta restrição com recálculo automático precisa de proposta, sem efetivar alterações acima do limite silenciosamente.
+- Estornos respeitam limite em reais acumulado por pagamento, impedindo contorno por operações menores. Correção de pagamento incorreto ocorre por estorno e novo lançamento, preservando o original e a auditoria.
+- Não permitir agendamento em datas passadas ou fora do expediente. Para entrega, rua, número, bairro e cidade são obrigatórios. Taxa de entrega e entregador ficam fora desta versão.
+- Acesso a `PEDIDOS` permite pesquisar clientes e catálogo para a venda sem exigir acesso administrativo aos módulos correspondentes; isso não concede edição desses cadastros.
+- Produção e Expedição podem visualizar os dados normalmente apresentados em suas telas e executar as mudanças operacionais disponíveis na respectiva tela. Produção pode colocar em produção, marcar como pronto e voltar para recebido; Expedição pode marcar saída para entrega, confirmar entrega ou retirada e retornar etapas operacionais. Cancelamento continua exigindo acesso a Pedidos e capacidade específica; reabertura de concluídos ou cancelados permanece exclusiva do gerente, retornando para `EM_PRODUCAO`. O backend deve validar essas autorizações, independentemente dos botões visíveis.
+- Quando uma alteração exigir autorização ainda não concedida, exibir “Sem autorização. Consulte o gerente.” e impedir a efetivação da ação até a aprovação. Quantidade incompatível com novo múltiplo exige escolha manual de quantidade válida pelo funcionário, conforme regra acima.
+- Fotos de referência entram nesta versão; integração automática com estoque fica fora. Formatos PNG, JPG/JPEG e WebP e máximo de 5 MB por foto estão confirmados; propor acesso e armazenamento.
+- Produto ou combo excluído permanece nos pedidos que já o utilizam, com sinalização de inconsistência indicando que o cadastro foi excluído. Não remover a linha nem recalcular o total apenas pela exclusão; o item excluído não fica disponível para novas inclusões. Preservar o histórico dos concluídos.
+- Se o recálculo resultar em total zero ou negativo, bloquear a efetivação da atualização, sinalizar o problema e exigir ajuste dos itens ou do desconto. Preservar a última versão válida do pedido até a correção, respeitando eventual necessidade de nova autorização do gerente.
+
+Registro complementar: `documentacao_bd/08_decisoes_pedidos_2026-09-07.md`. Esta revisão altera somente documentação, não autoriza execução de migração nem declara funcionalidades implementadas.
 
 - Respeitar camadas e padrões atuais.
 - Controllers pequenos, regras em Services, banco em Repositories.
