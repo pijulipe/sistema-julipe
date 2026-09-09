@@ -5,6 +5,7 @@ import {
   buscarFuncionarioPorId,
   substituirPermissoes,
   alterarPerfil,
+  atualizarDadosCadastrais as atualizarDadosCadastraisApi,
   criarFuncionario as criarFuncionarioApi,
 } from "./services/funcionarioService.js";
 import { useAutenticacao } from "./AutenticacaoContext.jsx";
@@ -182,6 +183,25 @@ export function FuncionariosProvider({ children }) {
     }
   };
 
+  const atualizarDadosCadastrais = async (idUsuario, dados) => {
+    try {
+      setErroFuncionarios("");
+      const resultado = await atualizarDadosCadastraisApi(idUsuario, dados, tokenInterno);
+      await carregarFuncionarios({
+        busca: "",
+        pagina: paginacao.pagina,
+        limite: paginacao.limite,
+      });
+      return resultado;
+    } catch (erro) {
+      setErroFuncionarios(erro.message);
+      if (erro.status === 401) {
+        await fazerLogout();
+      }
+      throw erro;
+    }
+  };
+
 
 
 
@@ -197,6 +217,7 @@ export function FuncionariosProvider({ children }) {
         criarFuncionario,
         atualizarPermissoes,
         atualizarPerfil,
+        atualizarDadosCadastrais,
       }}
     >
       {children}

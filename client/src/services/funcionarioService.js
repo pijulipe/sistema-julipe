@@ -57,3 +57,13 @@ export async function alterarPerfil(idUsuario, perfilAcesso, tokenInterno) {
     return conteudo.dados;
 
 }
+
+export async function atualizarDadosCadastrais(idUsuario, dados, tokenInterno) {
+
+    const caminho = `/api/funcionarios/` + idUsuario
+
+    const conteudo = await requisitarApi(caminho, "PATCH", dados, tokenInterno)
+
+    return conteudo.dados;
+
+}

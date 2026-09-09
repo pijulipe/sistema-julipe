@@ -22,15 +22,20 @@ const MODULOS_PERMISSAO = [
  * Em "create", permissões e situação ativa não aparecem no formulário —
  * o backend concede as permissões iniciais e ativa a conta automaticamente.
  *
- * Em "edit", os campos de Nome, E-mail, Senha e Conta ativa são exibidos e
- * editáveis na interface, mas ainda não estão conectados a uma chamada de
- * salvamento (não há endpoint/handler no contexto para persistir essas
- * alterações) — só "Perfil de Acesso" e "Permissões" continuam sendo
- * salvos de fato, como antes.
+ * Em "edit", Nome e Conta ativa são salvos via atualizarDadosCadastrais
+ * (PATCH /api/funcionarios/:id), com a mesma autorização de "Permissões"
+ * (acoesPermitidas.editarPermissoes). E-mail e Senha ainda são só visuais:
+ * alterá-los mexe na conta de autenticação do Supabase, não só no perfil
+ * do banco, e essa rota ainda não existe.
  */
 export default function FuncionarioModal({ mode, idUsuario, onClose }) {
-  const { buscarFuncionario, atualizarPerfil, atualizarPermissoes, criarFuncionario } =
-    useFuncionarios();
+  const {
+    buscarFuncionario,
+    atualizarPerfil,
+    atualizarPermissoes,
+    atualizarDadosCadastrais,
+    criarFuncionario,
+  } = useFuncionarios();
   const isCreate = mode === "create";
 
   const [funcionario, setFuncionario] = useState(null);
@@ -42,6 +47,7 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
 
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [salvandoPermissoes, setSalvandoPermissoes] = useState(false);
+  const [salvandoDados, setSalvandoDados] = useState(false);
 
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -101,6 +107,27 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
       setErro(erroSalvar.message);
     } finally {
       setSalvandoPerfil(false);
+    }
+  };
+
+  const nomeEditadoValido = nomeEditado.trim().length >= 2;
+  const dadosCadastraisAlterados =
+    funcionario &&
+    (nomeEditado.trim() !== (funcionario.nome || "") ||
+      contaAtiva !== (funcionario.ativo !== false));
+
+  const handleSalvarDados = async () => {
+    setErro("");
+    setSalvandoDados(true);
+    try {
+      await atualizarDadosCadastrais(idUsuario, {
+        nome: nomeEditado.trim(),
+        ativo: contaAtiva,
+      });
+    } catch (erroSalvar) {
+      setErro(erroSalvar.message);
+    } finally {
+      setSalvandoDados(false);
     }
   };
 
@@ -221,8 +248,9 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
                 <input
                   value={nomeEditado}
                   onChange={(e) => setNomeEditado(e.target.value)}
+                  disabled={!funcionario.acoesPermitidas.editarPermissoes}
                   placeholder="Nome do funcionário"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </Field>
 
@@ -279,15 +307,28 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
                 )}
               </div>
 
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={contaAtiva}
-                  onChange={(e) => setContaAtiva(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                Conta ativa
-              </label>
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={contaAtiva}
+                    onChange={(e) => setContaAtiva(e.target.checked)}
+                    disabled={!funcionario.acoesPermitidas.editarPermissoes}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                  />
+                  Conta ativa
+                </label>
+                {funcionario.acoesPermitidas.editarPermissoes && (
+                  <button
+                    type="button"
+                    onClick={handleSalvarDados}
+                    disabled={salvandoDados || !nomeEditadoValido || !dadosCadastraisAlterados}
+                    className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {salvandoDados ? "Salvando..." : "Salvar dados"}
+                  </button>
+                )}
+              </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
