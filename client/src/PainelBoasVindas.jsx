@@ -34,7 +34,7 @@ export default function PainelBoasVindas({
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
             <Cake size={22} className="text-white" />
           </div>
-          <span className="text-lg font-bold text-white">Doceria Hub</span>
+          <span className="text-lg font-bold text-white">Doceria Julipe</span>
         </div>
 
         <div className="max-w-md">
@@ -45,7 +45,7 @@ export default function PainelBoasVindas({
         </div>
 
         <p className="text-sm text-white/70">
-          © {new Date().getFullYear()} Doceria Hub
+          © {new Date().getFullYear()} Doceria Julipe
         </p>
       </div>
     </div>
@@ -59,7 +59,7 @@ export function MarcaCompacta() {
       <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600">
         <Cake size={18} className="text-white" />
       </div>
-      <span className="text-base font-bold text-slate-900">Doceria Hub</span>
+      <span className="text-base font-bold text-slate-900">Doceria Julipe</span>
     </div>
   );
 }

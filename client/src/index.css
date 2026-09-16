@@ -9,3 +9,8 @@
   font-size: 0.875rem;
   color: var(--color-slate-700);
 }
+
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
