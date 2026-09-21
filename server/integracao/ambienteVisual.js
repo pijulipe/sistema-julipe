@@ -51,6 +51,12 @@ autenticacao.post("/auth/v1/token", (req, res) => {
 autenticacao.post("/auth/v1/logout", (req, res) => res.status(204).end());
 const servidorAuth = autenticacao.listen(55440, "127.0.0.1");
 const { app } = await import("../src/app.js");
+if (process.argv.includes("--producao")) {
+  // Substituto de Storage apenas para conferir miniatura/ampliação, sem configuração remota.
+  const { fotosPedidos } = await import("../src/routes/pedidoRoutes.js");
+  fotosPedidos.armazenamento = { createSignedUrl: async () => ({ data: { signedUrl: "http://127.0.0.1:55440/referencia-preparo.svg" } }) };
+  autenticacao.get("/referencia-preparo.svg", (req, res) => res.type("image/svg+xml").send('<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320"><rect width="480" height="320" fill="#eff6ff"/><rect x="110" y="125" width="260" height="120" rx="20" fill="#93c5fd"/><path d="M110 155 Q130 180 150 155 T190 155 T230 155 T270 155 T310 155 T350 155 L370 155 L370 135 Q370 125 350 125 H130 Q110 125 110 135Z" fill="#fff"/><text x="240" y="215" text-anchor="middle" font-family="sans-serif" font-size="32" fill="#1e40af">Ana</text><text x="240" y="285" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#475569">Referência fictícia de teste</text></svg>'));
+}
 const servidor = app.listen(3334, "127.0.0.1", () => console.log("API visual local pronta na porta 3334. Autenticação de teste local pronta na porta 55440."));
 async function encerrar() {
   servidor.close(); servidorAuth.close();

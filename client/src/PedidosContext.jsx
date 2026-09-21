@@ -10,6 +10,8 @@ export function PedidosProvider({ children }) {
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const operacoes = useRef(new Map());
+  const sequenciaConsulta = useRef(0);
+  const quantidadeOperacoes = useRef(0);
   const requisitar = useCallback(async (caminho, metodo = "GET", corpo, token = tokenInterno) => {
     try { return await consultarPedidos(token, caminho, metodo, corpo); }
     catch (falha) { if (falha.status === 401 && token === tokenInterno) await fazerLogout(); throw falha; }
@@ -17,16 +19,19 @@ export function PedidosProvider({ children }) {
   const requisitarRef = useRef(requisitar);
   requisitarRef.current = requisitar;
   const recarregar = useCallback(async () => {
+    const sequencia = ++sequenciaConsulta.current;
     try {
       const { dados: acessoAtual } = await requisitarRef.current("/acesso");
+      if (sequencia !== sequenciaConsulta.current) return;
       setAcesso(acessoAtual);
       if (acessoAtual.perfilAcesso === "GERENTE" || acessoAtual.permissoes.some((m) => ["PEDIDOS", "PRODUCAO", "EXPEDICAO", "RELATORIO"].includes(m))) {
         const { dados } = await requisitarRef.current("/painel");
+        if (sequencia !== sequenciaConsulta.current) return;
         setPedidos(dados.map(adaptarPedido));
       } else setPedidos([]);
       setErro("");
-    } catch (falha) { setErro(falha.message); }
-    finally { setCarregando(false); }
+    } catch (falha) { if (sequencia === sequenciaConsulta.current) setErro(falha.message); }
+    finally { if (sequencia === sequenciaConsulta.current) setCarregando(false); }
   }, []);
   useEffect(() => {
     if (tokenInterno) recarregar();
@@ -41,15 +46,23 @@ export function PedidosProvider({ children }) {
     let operacao = operacoes.current.get(assinatura);
     if (operacao?.promessa) return operacao.promessa;
     if (!operacao) { operacao = { chave: campos.chaveOperacao || crypto.randomUUID() }; operacoes.current.set(assinatura, operacao); }
+    quantidadeOperacoes.current++;
     setOcupado(true);
     operacao.promessa = (async () => {
       try {
         const resultado = await requisitar(caminho, id && !acao ? "PUT" : "POST", { ...corpo, chaveOperacao: operacao.chave }, token);
         operacoes.current.delete(assinatura);
+        // A resposta confirmada já é persistida, mesmo se a consulta seguinte falhar.
+        if (resultado.dados?.idPedido) {
+          const salvo = adaptarPedido(resultado.dados);
+          setPedidos((anteriores) => anteriores.some((pedido) => pedido.id === salvo.id)
+            ? anteriores.map((pedido) => pedido.id === salvo.id && pedido.revisao <= salvo.revisao ? salvo : pedido)
+            : [...anteriores, salvo]);
+        }
         await recarregar();
         return resultado.dados;
       } catch (falha) { setErro(falha.message); if (falha.status === 409) await recarregar(); throw falha; }
-      finally { operacao.promessa = null; setOcupado(false); }
+      finally { operacao.promessa = null; quantidadeOperacoes.current--; setOcupado(quantidadeOperacoes.current > 0); }
     })();
     return operacao.promessa;
   }

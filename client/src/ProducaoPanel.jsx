@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Clock,
   ChefHat,
@@ -18,6 +18,8 @@ import { usePedidos } from "./PedidosContext";
 
 import EditarPedidoModal from "./EditarPedidoModal";
 import { MiniaturaImagemReferencia, LightboxReferencia } from "./FotosReferencia";
+import ConsultaPreparo from "./ConsultaPreparo.jsx";
+import { alterouPreparo, dataOperacao, filtrarProducao, permissoesProducao } from "./utils/producao.js";
 
 /* ---------------------------------------------------------
    Helpers
@@ -25,30 +27,11 @@ import { MiniaturaImagemReferencia, LightboxReferencia } from "./FotosReferencia
 const formatBRL = (value) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const todayISO = () => new Date().toISOString().split("T")[0];
-
 const toBRDate = (iso) => {
   if (!iso) return "";
   const [, m, d] = iso.split("-");
   return `${d}/${m}`;
 };
-
-function isSameWeek(iso, refISO) {
-  const d = new Date(`${iso}T00:00:00`);
-  const r = new Date(`${refISO}T00:00:00`);
-  const dayIndex = r.getDay() === 0 ? 6 : r.getDay() - 1; // semana começa na segunda
-  const monday = new Date(r);
-  monday.setDate(r.getDate() - dayIndex);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return d >= monday && d <= sunday;
-}
-
-function isSameMonth(iso, refISO) {
-  const d = new Date(`${iso}T00:00:00`);
-  const r = new Date(`${refISO}T00:00:00`);
-  return d.getFullYear() === r.getFullYear() && d.getMonth() === r.getMonth();
-}
 
 const paymentStatusMeta = {
   pendente: { label: "Pendente", bg: "#fee2e2", text: "#dc2626" },
@@ -91,7 +74,7 @@ const columns = [
    Main component
 --------------------------------------------------------- */
 export default function ProducaoPanel() {
-  const { pedidos, avancarStatus, reverterStatus, atualizarPedido, cancelarPedido } =
+  const { pedidos, acesso, carregando, erro, recarregar, executar } =
     usePedidos();
   const [dateFilter, setDateFilter] = useState("hoje");
   const [busca, setBusca] = useState("");
@@ -99,32 +82,44 @@ export default function ProducaoPanel() {
   const [pedidoEmEdicao, setPedidoEmEdicao] = useState(null);
   const [pedidoCancelando, setPedidoCancelando] = useState(null);
   const [imagemLightbox, setLightboxImage] = useState(null);
+  const [dataEspecifica, setDataEspecifica] = useState("");
+  const [consulta, setConsulta] = useState(null);
+  const [ocupados, setOcupados] = useState({});
+  const [errosAcoes, setErrosAcoes] = useState({});
+  const [alteracoes, setAlteracoes] = useState({});
+  const anteriores = useRef(new Map());
+  const emAndamento = useRef(new Set());
+  const today = dataOperacao();
+  const permissoes = permissoesProducao(acesso);
 
-  const today = todayISO();
+  useEffect(() => {
+    const novas = {};
+    for (const pedido of pedidos) {
+      const anterior = anteriores.current.get(pedido.id);
+      if (anterior && anterior.revisao !== pedido.revisao && alterouPreparo(anterior.fotografia, pedido.fotografia)) novas[pedido.id] = pedido.revisao;
+    }
+    anteriores.current = new Map(pedidos.map((pedido) => [pedido.id, pedido]));
+    if (Object.keys(novas).length) setAlteracoes((atuais) => ({ ...atuais, ...novas }));
+  }, [pedidos]);
 
-  const filtrados = useMemo(() => {
-    return pedidos.filter((o) => {
-      if (dateFilter === "hoje" && o.dataEntrega !== today) return false;
-      if (dateFilter === "semana" && !isSameWeek(o.dataEntrega, today))
-        return false;
-      if (dateFilter === "mes" && !isSameMonth(o.dataEntrega, today))
-        return false;
+  const filtrados = useMemo(() => filtrarProducao(pedidos, { periodo: dateFilter, data: dataEspecifica, pagamento: statusFilter, busca, hoje: today }), [pedidos, dateFilter, dataEspecifica, statusFilter, busca, today]);
 
-      if (statusFilter !== "todos" && o.statusPagamento !== statusFilter)
-        return false;
-
-      if (busca.trim()) {
-        const q = busca.trim().toLowerCase();
-        const nameMatch = o.cliente?.nome?.toLowerCase().includes(q);
-        const itemMatch = o.itens.some((i) =>
-          i.nome.toLowerCase().includes(q)
-        );
-        if (!nameMatch && !itemMatch) return false;
-      }
-
+  async function agir(pedido, acao, campos = {}) {
+    if (emAndamento.current.has(pedido.id)) return false;
+    emAndamento.current.add(pedido.id);
+    setOcupados((atuais) => ({ ...atuais, [pedido.id]: true }));
+    setErrosAcoes((atuais) => ({ ...atuais, [pedido.id]: "" }));
+    try {
+      await executar(pedido.id, acao, { revisao: pedido.revisao, ...campos });
       return true;
-    });
-  }, [pedidos, dateFilter, statusFilter, busca, today]);
+    } catch (falha) {
+      setErrosAcoes((atuais) => ({ ...atuais, [pedido.id]: falha.status === 409 ? "Pedido alterado por outra operação. Confira os dados atualizados antes de tentar novamente." : falha.message }));
+      return false;
+    } finally {
+      emAndamento.current.delete(pedido.id);
+      setOcupados((atuais) => ({ ...atuais, [pedido.id]: false }));
+    }
+  }
 
   const grouped = {
     recebido: filtrados.filter((o) => o.status === "recebido"),
@@ -134,7 +129,7 @@ export default function ProducaoPanel() {
 
   const handleConfirmarCancelamento = async () => {
     if (!pedidoCancelando) return;
-    const resultado = await cancelarPedido(pedidoCancelando.id);
+    const resultado = await agir(pedidoCancelando, "cancelamento");
     if (resultado) setPedidoCancelando(null);
   };
 
@@ -167,6 +162,8 @@ export default function ProducaoPanel() {
           </button>
         ))}
 
+        <input type="date" aria-label="Consultar data específica" value={dateFilter === "data" ? dataEspecifica : ""} onChange={(evento) => { setDataEspecifica(evento.target.value); setDateFilter(evento.target.value ? "data" : "hoje"); }} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
         <div className="relative min-w-[240px] flex-1">
           <Search
             size={16}
@@ -192,6 +189,8 @@ export default function ProducaoPanel() {
         </select>
       </div>
 
+      {carregando && <p role="status" className="mb-4 text-sm text-slate-500">Carregando pedidos…</p>}
+      {erro && <div role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{erro} {pedidos.length > 0 && "Os dados exibidos podem estar desatualizados."} <button onClick={recarregar} className="font-semibold underline">Tentar novamente</button></div>}
       {/* Kanban columns */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {columns.map((col) => (
@@ -214,18 +213,24 @@ export default function ProducaoPanel() {
             <div className="space-y-4">
               {grouped[col.key].length === 0 ? (
                 <div className="flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-400">
-                  Nenhum pedido
+                  {carregando ? "Carregando…" : erro ? "Consulta indisponível" : "Nenhum pedido"}
                 </div>
               ) : (
                 grouped[col.key].map((pedido) => (
                   <CardPedido
                     key={pedido.id}
                     pedido={pedido}
-                    onAdvance={() => avancarStatus(pedido.id)}
-                    onRevert={() => reverterStatus(pedido.id)}
+                    onAdvance={() => agir(pedido, "status", { status: pedido.status === "recebido" ? "EM_PRODUCAO" : "PRONTO" })}
+                    onRevert={() => agir(pedido, "status", { status: pedido.status === "pronto" ? "EM_PRODUCAO" : "RECEBIDO" })}
                     onEdit={() => setPedidoEmEdicao(pedido)}
-                    onCancel={() => setPedidoCancelando(pedido)}
+                    onCancel={() => { setErrosAcoes((atuais) => ({ ...atuais, [pedido.id]: "" })); setPedidoCancelando(pedido); }}
                     onViewImage={setLightboxImage}
+                    onConsultar={() => setConsulta(pedido.id)}
+                    atrasado={Boolean(pedido.dataEntrega && pedido.dataEntrega < today)}
+                    alterado={alteracoes[pedido.id]}
+                    permissoes={permissoes}
+                    ocupado={ocupados[pedido.id]}
+                    erro={errosAcoes[pedido.id]}
                   />
                 ))
               )}
@@ -234,24 +239,24 @@ export default function ProducaoPanel() {
         ))}
       </div>
 
-      {pedidoEmEdicao && (
+      {pedidoEmEdicao && permissoes.editar && (
         <EditarPedidoModal
           pedido={pedidoEmEdicao}
           onClose={() => setPedidoEmEdicao(null)}
-          onSave={(data) => {
-            atualizarPedido(pedidoEmEdicao.id, data);
-            setPedidoEmEdicao(null);
-          }}
         />
       )}
 
-      {pedidoCancelando && (
+      {pedidoCancelando && permissoes.cancelar && (
         <ModalCancelarPedido
           pedido={pedidoCancelando}
           onClose={() => setPedidoCancelando(null)}
           onConfirm={handleConfirmarCancelamento}
+          ocupado={ocupados[pedidoCancelando.id]}
+          erro={errosAcoes[pedidoCancelando.id]}
         />
       )}
+
+      {consulta && <ConsultaPreparo id={consulta} onClose={() => setConsulta(null)} />}
 
       <LightboxReferencia
         imagem={imagemLightbox}
@@ -264,11 +269,11 @@ export default function ProducaoPanel() {
 /* ---------------------------------------------------------
    Modal de confirmação de cancelamento
 --------------------------------------------------------- */
-function ModalCancelarPedido({ pedido, onClose, onConfirm }) {
+function ModalCancelarPedido({ pedido, onClose, onConfirm, ocupado, erro }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
-      onClick={onClose}
+      onClick={ocupado ? undefined : onClose}
     >
       <div
         className="w-full max-w-sm rounded-2xl bg-white shadow-xl"
@@ -285,20 +290,23 @@ function ModalCancelarPedido({ pedido, onClose, onConfirm }) {
             O pedido de <span className="font-semibold text-slate-700">{pedido.cliente?.nome}</span> será
             marcado como cancelado e sairá do painel de produção. Somente o gerente poderá reabrir o pedido.
           </p>
+          {erro && <p role="alert" className="mt-3 text-sm text-red-600">{erro} Feche esta confirmação e confira o pedido antes de repetir.</p>}
         </div>
 
         <div className="flex gap-3 px-6 pb-6 pt-5">
           <button
             onClick={onClose}
+            disabled={ocupado}
             className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
           >
             Voltar
           </button>
           <button
             onClick={onConfirm}
+            disabled={ocupado || Boolean(erro)}
             className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700"
           >
-            Cancelar Pedido
+            {ocupado ? "Cancelando…" : "Cancelar Pedido"}
           </button>
         </div>
       </div>
@@ -309,7 +317,7 @@ function ModalCancelarPedido({ pedido, onClose, onConfirm }) {
 /* ---------------------------------------------------------
    Card de pedido
 --------------------------------------------------------- */
-function CardPedido({ pedido, onAdvance, onRevert, onEdit, onCancel, onViewImage }) {
+function CardPedido({ pedido, onAdvance, onRevert, onEdit, onCancel, onViewImage, onConsultar, atrasado, alterado, permissoes, ocupado, erro }) {
   const payMeta =
     paymentStatusMeta[pedido.statusPagamento] || paymentStatusMeta.pendente;
   const isRetirada = pedido.tipoEntrega === "retirada";
@@ -319,24 +327,26 @@ function CardPedido({ pedido, onAdvance, onRevert, onEdit, onCancel, onViewImage
       {/* Cliente + status de pagamento + editar */}
       <div className="mb-2 flex items-start justify-between gap-3">
         <span className="text-sm font-semibold text-slate-900">
-          {pedido.cliente?.nome}
+          {pedido.cliente?.nome}<span className="block text-xs font-normal text-slate-400">Pedido #{pedido.id}</span>
         </span>
         <div className="flex shrink-0 items-center gap-2">
-          <button
+          {permissoes.editar && <button
             onClick={onEdit}
+            disabled={ocupado || pedido.legado}
             className="text-slate-400 transition-colors hover:text-blue-600"
             aria-label="Editar pedido"
           >
             <Pencil size={15} />
-          </button>
-          <button
+          </button>}
+          {permissoes.cancelar && <button
             onClick={onCancel}
+            disabled={ocupado || pedido.legado}
             className="text-slate-400 transition-colors hover:text-red-600"
             aria-label="Cancelar pedido"
             title="Cancelar pedido"
           >
             <Ban size={15} />
-          </button>
+          </button>}
           <span
             className="rounded-full px-2.5 py-1 text-xs font-semibold"
             style={{ backgroundColor: payMeta.bg, color: payMeta.text }}
@@ -355,13 +365,14 @@ function CardPedido({ pedido, onAdvance, onRevert, onEdit, onCancel, onViewImage
           <span className="h-1 w-1 rounded-full bg-slate-300" />
           {toBRDate(pedido.dataEntrega)}
         </span>
+        {atrasado && <span className="font-semibold text-red-600">Atrasado</span>}
       </div>
 
       {/* Itens do pedido */}
       <div className="mb-4 space-y-1.5">
         {pedido.itens.map((item) => (
           <div
-            key={item.id}
+            key={item.chaveItem || item.id}
             className="flex items-center justify-between gap-2 rounded-lg bg-amber-50/80 px-3 py-2.5 text-sm"
           >
             <span className="flex min-w-0 items-center gap-2 font-medium text-amber-900">
@@ -378,7 +389,7 @@ function CardPedido({ pedido, onAdvance, onRevert, onEdit, onCancel, onViewImage
               </span>
             </span>
             <span className="shrink-0 font-semibold text-amber-900">
-              {formatBRL(item.preco * item.quantidade)}
+              {formatBRL(Number(item.subtotalCentavos) / 100)}
             </span>
           </div>
         ))}
@@ -402,6 +413,13 @@ function CardPedido({ pedido, onAdvance, onRevert, onEdit, onCancel, onViewImage
         </span>
       </div>
 
+      <button onClick={onConsultar} className="mb-4 text-sm font-semibold text-blue-600 hover:text-blue-700">Consultar preparo e alterações</button>
+      {alterado && <p role="status" className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Preparo alterado durante esta consulta · revisão {alterado}. Consulte o histórico.</p>}
+      {(pedido.pendencia?.impedimentos?.length > 0 || pedido.fotografia?.avisos?.length > 0 || pedido.legado) && <p className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Pendências para atenção da equipe. Consulte os detalhes.</p>}
+      {erro && <p role="alert" className="mb-3 text-sm text-red-600">{erro}</p>}
+
+      {permissoes.operar && <fieldset disabled={ocupado || pedido.legado} className="space-y-2 disabled:opacity-50">
+      {ocupado && <p role="status" className="text-xs text-slate-500">Salvando alteração…</p>}
       {pedido.status !== "pronto" ? (
         <button
           onClick={onAdvance}
@@ -419,6 +437,8 @@ function CardPedido({ pedido, onAdvance, onRevert, onEdit, onCancel, onViewImage
           Voltar para Em Produção
         </button>
       )}
+      {pedido.status === "em_producao" && <button onClick={onRevert} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-50"><ArrowLeft size={15} />Voltar para Recebido</button>}
+      </fieldset>}
     </div>
   );
 }

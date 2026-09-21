@@ -230,7 +230,23 @@ test("Pedidos com PostgreSQL descartável: migração, persistência e concorrê
         assert.equal((await consultar("/configuracoes-pedidos")).status, 403);
         const resposta = await consultar(`/pedidos/${aberto.idPedido}/status`, { chaveOperacao: randomUUID(), revisao: aberto.revisao, status: "EM_PRODUCAO" });
         assert.equal(resposta.status, 200);
-        assert.equal((await resposta.json()).dados.status, "EM_PRODUCAO");
+        let emPreparo = (await resposta.json()).dados;
+        assert.equal(emPreparo.status, "EM_PRODUCAO");
+        for (const status of ["RECEBIDO", "EM_PRODUCAO", "PRONTO", "EM_PRODUCAO"]) {
+          const alteracao = await consultar(`/pedidos/${aberto.idPedido}/status`, { chaveOperacao: randomUUID(), revisao: emPreparo.revisao, status });
+          assert.equal(alteracao.status, 200);
+          emPreparo = (await alteracao.json()).dados;
+          assert.equal((await servico.buscar(aberto.idPedido, gerente)).status, status);
+        }
+        assert.equal((await consultar(`/pedidos/${aberto.idPedido}/status`, { chaveOperacao: randomUUID(), revisao: aberto.revisao, status: "RECEBIDO" })).status, 409);
+        for (const status of ["EM_ROTA", "ENTREGUE"]) {
+          assert.equal((await consultar(`/pedidos/${aberto.idPedido}/status`, { chaveOperacao: randomUUID(), revisao: emPreparo.revisao, status })).status, 403);
+        }
+        assert.equal((await consultar(`/pedidos/${aberto.idPedido}/cancelamento`, { chaveOperacao: randomUUID(), revisao: emPreparo.revisao })).status, 403);
+        const edicao = await fetch(`http://127.0.0.1:${servidor.address().port}/api/pedidos/${aberto.idPedido}`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ chaveOperacao: randomUUID(), revisao: emPreparo.revisao, dados }) });
+        assert.equal(edicao.status, 403);
+        assert.equal((await consultar(`/pedidos/${aberto.idPedido}/historico`)).status, 200);
+        assert.equal((await consultar(`/pedidos/${aberto.idPedido}/fotos?versao=1`)).status, 200);
         await cliente.permissaoFuncionario.updateMany({ where: { idUsuario: idOperador }, data: { itemAtivo: false } });
         assert.equal((await consultar("/pedidos/painel")).status, 403);
         assert.equal((await consultar("/pedidos/indicadores")).status, 200);
