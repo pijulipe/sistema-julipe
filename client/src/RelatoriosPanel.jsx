@@ -21,11 +21,9 @@ import {
 } from "lucide-react";
 import { usePedidos } from "./PedidosContext";
 import ResumoFinanceiroPedidos from "./ResumoFinanceiroPedidos.jsx";
-import { useClientes } from "./ClientesContext";
-import { useCombos } from "./CombosContext";
-import { useProdutos } from "./ProdutosContext";
 import { categorias as listaCategoriaProduto } from "./categoriasProdutos";
-import { decomporItensPorProduto, somarPorProduto } from "./capacidade";
+
+import { construirVendasProdutos, itensVendidos, resumirFinanceiro, pedidosPorHora, vendaValida, emReais } from "./utils/relatorios.js";
 
 /* ---------------------------------------------------------
    Helpers de data/formatação
@@ -178,11 +176,6 @@ function exportarPedidosCSV(pedidos) {
 }
 
 /* ---------------------------------------------------------
-   Horas consideradas no gráfico "Pedidos por Horário".
---------------------------------------------------------- */
-const REPORT_HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 07h .. 20h
-
-/* ---------------------------------------------------------
    Metadados usados nos gráficos de pagamento da aba Financeiro.
 --------------------------------------------------------- */
 const PAYMENT_METHOD_META = {
@@ -196,77 +189,6 @@ const PAYMENT_STATUS_META = {
   parcial: { label: "Parcial", color: "#f59e0b" },
   pendente: { label: "Pendente", color: "#ef4444" },
 };
-
-/**
- * Percorre os itens de um pedido (produtos e/ou combos) e chama
- * callback(idProduto, quantidade, revenue) para cada produto "real"
- * envolvido — decompondo combos e distribuindo o valor do combo
- * entre seus produtos proporcionalmente ao preço de catálogo de
- * cada um (já que um combo não tem preço por item, só um preço
- * único para o conjunto).
- */
-function forEachItemRevenue(itens, produtos, combos, callback) {
-  const produtoPorId = (id) => produtos.find((p) => p.id === id);
-
-  (itens || []).forEach((item) => {
-    if (item.subtotalCentavos !== undefined) {
-      callback(item.id, item.quantidade, Number(item.subtotalCentavos) / 100);
-      return;
-    }
-    if (typeof item.id === "string" && item.id.startsWith("combo-")) {
-      const idCombo = Number(item.id.replace("combo-", ""));
-      const combo = combos.find((c) => c.id === idCombo);
-      if (!combo) return;
-
-      const totalCatalog = combo.itens.reduce((sum, ci) => {
-        const p = produtoPorId(ci.idProduto);
-        return sum + (p ? p.preco * ci.quantidade : 0);
-      }, 0);
-      const receitaCombo = (item.preco || 0) * item.quantidade;
-
-      combo.itens.forEach((ci) => {
-        const p = produtoPorId(ci.idProduto);
-        if (!p) return;
-        const quantidade = ci.quantidade * item.quantidade;
-        const weight =
-          totalCatalog > 0
-            ? (p.preco * ci.quantidade) / totalCatalog
-            : 1 / combo.itens.length;
-        callback(ci.idProduto, quantidade, receitaCombo * weight);
-      });
-    } else {
-      callback(item.id, item.quantidade, (item.preco || 0) * item.quantidade);
-    }
-  });
-}
-
-/**
- * Fator que reflete o desconto aplicado a um pedido: total / subtotal.
- * Usado para distribuir o desconto (que incide sobre o pedido como um
- * todo) proporcionalmente entre os itens/produtos que o compõem, já
- * que o preço de catálogo de cada item sozinho não reflete o desconto.
- * Sem subtotal válido (>0), assume fator 1 (sem desconto).
- */
-function obterFatorDescontoPedido(pedido) {
-  const subtotal = pedido.subtotal;
-  if (!subtotal || subtotal <= 0) return 1;
-  return (pedido.total ?? subtotal) / subtotal;
-}
-
-/** Agrega quantidade e faturamento por produto a partir de uma lista de pedidos. */
-function construirVendasProdutos(pedidos, produtos, combos) {
-  const map = {};
-  pedidos.forEach((pedido) => {
-    if (pedido.status === "cancelado") return;
-    const discountFactor = obterFatorDescontoPedido(pedido);
-    forEachItemRevenue(pedido.itens, produtos, combos, (idProduto, quantidade, revenue) => {
-      if (!map[idProduto]) map[idProduto] = { quantidade: 0, revenue: 0 };
-      map[idProduto].quantidade += quantidade;
-      map[idProduto].revenue += revenue * discountFactor;
-    });
-  });
-  return map;
-}
 
 /* ---------------------------------------------------------
    Hook: dispara a animação de entrada de um gráfico sempre
@@ -591,7 +513,7 @@ function StatusFunnelChart({ data }) {
 
 /* ---------------------------------------------------------
    Lista de barras horizontais genérica — usada em Top Produtos
-   por Faturamento/Quantidade e Faturamento por Bairro.
+   por Faturamento/Quantidade.
 --------------------------------------------------------- */
 function HorizontalBarList({ data, color = "#f59e0b", formatValue = (v) => String(v), emptyLabel = "Sem dados no período" }) {
   const [hoverIdx, setHoverIdx] = useState(null);
@@ -818,7 +740,7 @@ function HourlyBarChart({ data }) {
                 onMouseEnter={() => setHoverIdx(i)}
                 onMouseLeave={() => setHoverIdx((cur) => (cur === i ? null : cur))}
               />
-              {i % 2 === 0 && (
+              {(i % 2 === 0 || i === data.length - 1) && (
                 <text x={x + barW / 2} y={H - 8} textAnchor="middle" fontSize="10" fill="#94a3b8">
                   {d.label}
                 </text>
@@ -1315,25 +1237,18 @@ const tabs = [
 ];
 
 export default function RelatoriosPanel() {
-  const { pedidos } = usePedidos();
-  const { combos } = useCombos();
-  const { produtos: produtosCadastrados } = useProdutos();
-  const produtos = useMemo(() => {
-    const registros = new Map(produtosCadastrados.map((p) => [p.id, p]));
-    for (const pedido of pedidos) for (const item of pedido.itens) registros.set(item.id, { id: item.id, nome: item.nome, preco: item.preco, categoria: item.tipo === "COMBO" ? "Combos" : item.composicao[0]?.categoria || "Sem categoria" });
-    return [...registros.values()];
-  }, [produtosCadastrados, pedidos]);
-  useClientes(); // clientes já vêm embutidos em cada pedido (pedido.cliente)
-
+  const { pedidos, carregando, erro, recarregar } = usePedidos();
   const [tab, setTab] = useState("visao-geral");
   const [preset, setPreset] = useState("hoje");
   const [customRange, setCustomRange] = useState({ start: "", end: "" });
+  const [intervaloAplicado, setIntervaloAplicado] = useState({ start: "", end: "" });
+  const [tentandoNovamente, setTentandoNovamente] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [busca, setBusca] = useState("");
 
   const { start, end } = useMemo(
-    () => computeRange(preset, pedidos, customRange),
-    [preset, pedidos, customRange]
+    () => computeRange(preset, pedidos, intervaloAplicado),
+    [preset, pedidos, intervaloAplicado]
   );
 
   const pedidosFiltrados = useMemo(() => {
@@ -1346,21 +1261,18 @@ export default function RelatoriosPanel() {
   }, [pedidos, start, end]);
 
   /* -------- métricas -------- */
-  const faturamento = pedidosFiltrados.reduce((sum, o) => sum + (o.status === "cancelado" ? 0 : (o.total || 0)), 0);
+  const resumo = useMemo(() => resumirFinanceiro(pedidosFiltrados), [pedidosFiltrados]);
+  const faturamento = emReais(resumo.faturamentoCentavos);
+  const vendasValidas = pedidosFiltrados.filter(vendaValida).length;
   const totalPedidos = pedidosFiltrados.length;
-  const ticketMedio = totalPedidos > 0 ? faturamento / totalPedidos : 0;
+  const ticketMedio = vendasValidas > 0 ? faturamento / vendasValidas : 0;
   const entregaCount = pedidosFiltrados.filter((o) => o.tipoEntrega !== "retirada").length;
   const taxaEntrega = totalPedidos > 0 ? (entregaCount / totalPedidos) * 100 : 0;
   const clientesUnicos = useMemo(
     () => new Set(pedidosFiltrados.map((o) => o.cliente?.id).filter((id) => id != null)).size,
     [pedidosFiltrados]
   );
-  const produtosVendidos = useMemo(() => {
-    const decomposed = somarPorProduto(
-      decomporItensPorProduto(pedidosFiltrados.flatMap((o) => o.itens || []), combos)
-    );
-    return Object.keys(decomposed).length;
-  }, [pedidosFiltrados, combos]);
+  const produtosVendidos = useMemo(() => construirVendasProdutos(pedidosFiltrados).length, [pedidosFiltrados]);
 
   const stats = [
     { key: "faturamento", label: "Faturamento", value: formatBRL(faturamento), icon: DollarSign, color: "#16a34a", bg: "#f0fdf4" },
@@ -1368,7 +1280,7 @@ export default function RelatoriosPanel() {
     { key: "ticket", label: "Ticket Médio", value: formatBRL(ticketMedio), icon: TrendingUp, color: "#9333ea", bg: "#faf5ff" },
     { key: "entrega", label: "Taxa de Entrega", value: `${Math.round(taxaEntrega)}%`, icon: Truck, color: "#ea580c", bg: "#fff7ed" },
     { key: "clientes", label: "Clientes", value: String(clientesUnicos), icon: Users, color: "#db2777", bg: "#fce7f3" },
-    { key: "produtos", label: "Produtos", value: String(produtosVendidos), icon: Cake, color: "#4338ca", bg: "#e0e7ff" },
+    { key: "produtos", label: "Produtos/combos distintos", value: String(produtosVendidos), icon: Cake, color: "#4338ca", bg: "#e0e7ff" },
   ];
 
   /* -------- Faturamento por dia (respeita o período selecionado) -------- */
@@ -1376,9 +1288,9 @@ export default function RelatoriosPanel() {
     const days = eachDayISO(start, end);
     const totals = {};
     pedidosFiltrados.forEach((o) => {
-      totals[o.dataEntrega] = (totals[o.dataEntrega] || 0) + (o.status === "cancelado" ? 0 : (o.total || 0));
+      totals[o.dataEntrega] = (totals[o.dataEntrega] || 0n) + (vendaValida(o) ? BigInt(o.fotografia.totalCentavos) : 0n);
     });
-    return days.map((iso) => ({ date: iso, value: totals[iso] || 0 }));
+    return days.map((iso) => ({ date: iso, value: emReais(totals[iso] || 0n) }));
   }, [pedidosFiltrados, start, end]);
 
   /* -------- Pedidos por dia da semana (padrão histórico — usa todos os
@@ -1403,6 +1315,7 @@ export default function RelatoriosPanel() {
       { key: "em_rota", label: "Em Rota", color: "#6366f1" },
       { key: "entregue", label: "Entregue", color: "#8b5cf6" },
       { key: "retirado", label: "Retirado", color: "#a855f7" },
+      { key: "cancelado", label: "Cancelado", color: "#ef4444" },
     ];
     const counts = {
       recebido: 0,
@@ -1411,6 +1324,7 @@ export default function RelatoriosPanel() {
       em_rota: 0,
       entregue: 0,
       retirado: 0,
+      cancelado: 0,
     };
     pedidosFiltrados.forEach((o) => {
       if (o.status === "entregue") {
@@ -1424,19 +1338,7 @@ export default function RelatoriosPanel() {
   }, [pedidosFiltrados]);
 
   /* -------- Aba Vendas: vendas por produto (respeita o período) -------- */
-  const listaVendasProdutos = useMemo(() => {
-    const sales = construirVendasProdutos(pedidosFiltrados, produtos, combos);
-    return Object.entries(sales).map(([idProduto, { quantidade, revenue }]) => {
-      const p = produtos.find((pr) => pr.id === Number(idProduto));
-      return {
-        id: Number(idProduto),
-        nome: p?.nome || "Produto removido",
-        categoria: p?.categoria || "—",
-        quantidade,
-        revenue,
-      };
-    });
-  }, [pedidosFiltrados, produtos, combos]);
+  const listaVendasProdutos = useMemo(() => construirVendasProdutos(pedidosFiltrados), [pedidosFiltrados]);
 
   const topProdutosFaturamento = useMemo(
     () =>
@@ -1464,38 +1366,17 @@ export default function RelatoriosPanel() {
   /* -------- Vendas por Categoria (respeita o período) -------- */
   const vendasPorCategoria = useMemo(() => {
     const totals = {};
-    listaVendasProdutos.forEach((p) => {
-      totals[p.categoria] = (totals[p.categoria] || 0) + p.revenue;
+    pedidosFiltrados.flatMap(itensVendidos).forEach((p) => {
+      totals[p.categoria] = (totals[p.categoria] || 0n) + p.centavos;
     });
-    return listaCategoriaProduto
+    return [...listaCategoriaProduto, { key: "Combos", label: "Combos", color: "#6366f1" }, { key: "Sem categoria", label: "Sem categoria", color: "#94a3b8" }]
       .filter((c) => (totals[c.key] || 0) > 0)
-      .map((c) => ({ key: c.key, label: c.label, value: totals[c.key], color: c.color }));
-  }, [listaVendasProdutos]);
+      .map((c) => ({ key: c.key, label: c.label, value: emReais(totals[c.key]), color: c.color }));
+  }, [pedidosFiltrados]);
 
   /* -------- Pedidos por Horário (respeita o período) -------- */
-  const pedidosPorHorario = useMemo(() => {
-    const counts = {};
-    REPORT_HOURS.forEach((h) => (counts[h] = 0));
-    pedidosFiltrados.forEach((o) => {
-      const hour = Number((o.horarioEntrega || "").slice(0, 2));
-      if (!Number.isNaN(hour) && counts[hour] !== undefined) counts[hour] += 1;
-    });
-    return REPORT_HOURS.map((h) => ({ label: `${pad2(h)}:00`, value: counts[h] }));
-  }, [pedidosFiltrados]);
+  const pedidosPorHorario = useMemo(() => pedidosPorHora(pedidosFiltrados), [pedidosFiltrados]);
 
-  /* -------- Faturamento por Bairro (respeita o período) -------- */
-  const faturamentoPorBairro = useMemo(() => {
-    const totals = {};
-    pedidosFiltrados.forEach((o) => {
-      const key =
-        o.bairro?.trim() || o.cliente?.bairro?.trim() || "Sem bairro";
-      totals[key] = (totals[key] || 0) + (o.status === "cancelado" ? 0 : (o.total || 0));
-    });
-    return Object.entries(totals)
-      .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-  }, [pedidosFiltrados]);
 
   /* -------- Aba Financeiro: faturamento e descontos por dia (respeita o
      período selecionado) -------- */
@@ -1503,30 +1384,29 @@ export default function RelatoriosPanel() {
     const days = eachDayISO(start, end);
     const totals = {};
     pedidosFiltrados.forEach((o) => {
-      if (!totals[o.dataEntrega]) totals[o.dataEntrega] = { faturamento: 0, descontos: 0 };
-      totals[o.dataEntrega].faturamento += o.status === "cancelado" ? 0 : (o.total || 0);
-      totals[o.dataEntrega].descontos += o.valorDesconto || 0;
+      if (!totals[o.dataEntrega]) totals[o.dataEntrega] = { faturamento: 0n, descontos: 0n };
+      totals[o.dataEntrega].faturamento += vendaValida(o) ? BigInt(o.fotografia.totalCentavos) : 0n;
+      totals[o.dataEntrega].descontos += vendaValida(o) ? BigInt(o.fotografia.descontoCentavos) : 0n;
     });
     return days.map((iso) => ({
       date: iso,
-      faturamento: totals[iso]?.faturamento || 0,
-      descontos: totals[iso]?.descontos || 0,
+      faturamento: emReais(totals[iso]?.faturamento || 0n),
+      descontos: emReais(totals[iso]?.descontos || 0n),
     }));
   }, [pedidosFiltrados, start, end]);
 
   // Recebimentos incluem valores parciais e excedentes; estornos são separados.
-  const recebido = Number(pedidosFiltrados.reduce((soma, o) => soma + BigInt(o.financeiro?.recebidoCentavos || 0), 0n)) / 100;
-  const aReceber = Number(pedidosFiltrados.filter((o) => o.status !== "cancelado").reduce((soma, o) => { const saldo = BigInt(o.fotografia?.totalCentavos || 0) - BigInt(o.financeiro?.liquidoCentavos || 0); return soma + (saldo > 0n ? saldo : 0n); }, 0n)) / 100;
-  const descontosTotais = pedidosFiltrados.reduce(
-    (sum, o) => sum + (o.valorDesconto || 0),
-    0
-  );
+  const recebido = emReais(resumo.recebidoCentavos);
+  const aReceber = emReais(resumo.saldoCentavos);
+  const descontosTotais = emReais(resumo.descontoCentavos);
 
   const financeiroStats = [
     { key: "faturamento-total", label: "Faturamento Total", value: formatBRL(faturamento), icon: DollarSign, color: "#16a34a", bg: "#f0fdf4" },
-    { key: "recebido", label: "Recebido", value: formatBRL(recebido), icon: Wallet, color: "#7c3aed", bg: "#ede9fe" },
+    { key: "recebido", label: "Recebido bruto", value: formatBRL(recebido), icon: Wallet, color: "#7c3aed", bg: "#ede9fe" },
     { key: "a-receber", label: "A Receber", value: formatBRL(aReceber), icon: Clock, color: "#dc2626", bg: "#fee2e2" },
     { key: "descontos", label: "Descontos", value: formatBRL(descontosTotais), icon: TrendingDown, color: "#ea580c", bg: "#fff7ed" },
+    { key: "estornado", label: "Estornado", value: formatBRL(emReais(resumo.estornadoCentavos)), icon: Wallet, color: "#7c3aed", bg: "#ede9fe" },
+    { key: "liquido", label: "Recebido líquido", value: formatBRL(emReais(resumo.liquidoCentavos)), icon: Wallet, color: "#7c3aed", bg: "#ede9fe" },
   ];
 
   /* -------- Aba Financeiro: faturamento por forma de pagamento (respeita
@@ -1537,14 +1417,14 @@ export default function RelatoriosPanel() {
       for (const pagamento of o.pagamentos || []) {
         if (pagamento.situacao === "REJEITADO") continue;
         const chave = pagamento.forma.toLowerCase();
-        totals[chave] = (totals[chave] || 0) + Number(pagamento.valorCentavos) / 100;
+        totals[chave] = (totals[chave] || 0n) + BigInt(pagamento.valorCentavos);
       }
     });
     return Object.entries(PAYMENT_METHOD_META)
       .map(([key, meta]) => ({
         key,
         label: meta.label,
-        value: totals[key] || 0,
+        value: emReais(totals[key] || 0n),
         color: meta.color,
       }))
       .filter((d) => d.value > 0);
@@ -1588,23 +1468,6 @@ export default function RelatoriosPanel() {
     ].filter((d) => d.value > 0);
   }, [pedidosFiltrados]);
 
-  /* -------- Aba Operacional: entregas por bairro (respeita o período
-     selecionado; só pedidos de entrega — retirada não tem bairro
-     roteirizável) -------- */
-  const entregasPorBairro = useMemo(() => {
-    const totals = {};
-    pedidosFiltrados
-      .filter((o) => o.tipoEntrega !== "retirada")
-      .forEach((o) => {
-        const key =
-          o.bairro?.trim() || o.cliente?.bairro?.trim() || "Sem bairro";
-        totals[key] = (totals[key] || 0) + 1;
-      });
-    return Object.entries(totals)
-      .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-  }, [pedidosFiltrados]);
 
   /* -------- Histórico Comparativo por Categoria (Mensal) — usa todos os
      pedidos (não só o período selecionado), sempre os últimos 6 meses,
@@ -1628,10 +1491,10 @@ export default function RelatoriosPanel() {
     };
 
     const totals = {};
-    monthKeys.forEach((k) => (totals[k] = { Bolos: 0, Doces: 0, Salgados: 0, Outros: 0 }));
+    monthKeys.forEach((k) => (totals[k] = { Bolos: 0n, Doces: 0n, Salgados: 0n, Combos: 0n, Outros: 0n }));
 
     const bucketFor = (categoria) =>
-      categoria === "Bolos" || categoria === "Doces" || categoria === "Salgados"
+      categoria === "Bolos" || categoria === "Doces" || categoria === "Salgados" || categoria === "Combos"
         ? categoria
         : "Outros";
 
@@ -1642,11 +1505,7 @@ export default function RelatoriosPanel() {
       const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
       if (!totals[key]) return;
 
-      const discountFactor = obterFatorDescontoPedido(pedido);
-      forEachItemRevenue(pedido.itens, produtos, combos, (idProduto, quantidade, revenue) => {
-        const p = produtos.find((pr) => pr.id === idProduto);
-        totals[key][bucketFor(p?.categoria)] += revenue * discountFactor;
-      });
+      for (const item of itensVendidos(pedido)) totals[key][bucketFor(item.categoria)] += item.centavos;
     });
 
     const months = monthKeys.map((key) => ({ key, label: monthLabel(key) }));
@@ -1654,39 +1513,38 @@ export default function RelatoriosPanel() {
       { key: "Bolos", label: "Bolos", color: "#f59e0b" },
       { key: "Doces", label: "Doces", color: "#ec4899" },
       { key: "Salgados", label: "Salgados", color: "#f97316" },
+      { key: "Combos", label: "Combos", color: "#6366f1" },
       { key: "Outros", label: "Outros", color: "#22c55e" },
     ];
     const series = seriesMeta.map((s) => ({
       ...s,
-      values: monthKeys.map((key) => totals[key][s.key]),
+      values: monthKeys.map((key) => emReais(totals[key][s.key])),
     }));
 
     return { months, series };
-  }, [pedidos, produtos, combos]);
+  }, [pedidos]);
 
   /* -------- Aba Clientes: agrega pedidos por cliente (respeita o
-     período). Usa pedido.total (já líquido de desconto) — igual à lógica
-     de "Faturamento por Bairro" — então o desconto de cada pedido já
-     está refletido no faturamento por cliente. -------- */
+     período). O total persistido já reflete o desconto de cada pedido
+     no faturamento por cliente. -------- */
   const estatisticasCliente = useMemo(() => {
     const map = new Map();
     pedidosFiltrados.forEach((o) => {
+      if (!vendaValida(o)) return;
       const key = o.cliente?.id ?? `sem-cliente-${o.cliente?.nome || "desconhecido"}`;
       if (!map.has(key)) {
         map.set(key, {
           id: key,
           nome: o.cliente?.nome || "Cliente não identificado",
-          bairro:
-            o.bairro?.trim() || o.cliente?.bairro?.trim() || "",
           pedidos: 0,
-          revenue: 0,
+          revenue: 0n,
         });
       }
       const entry = map.get(key);
       entry.pedidos += 1;
-      entry.revenue += o.status === "cancelado" ? 0 : (o.total || 0);
+      entry.revenue += BigInt(o.fotografia.totalCentavos);
     });
-    return Array.from(map.values());
+    return Array.from(map.values()).map((item) => ({ ...item, revenue: emReais(item.revenue) }));
   }, [pedidosFiltrados]);
 
   /* -------- Quantidade de pedidos por cliente considerando todos os
@@ -1700,6 +1558,7 @@ export default function RelatoriosPanel() {
   const contagemPedidosClienteAteFim = useMemo(() => {
     const map = new Map();
     pedidos.forEach((o) => {
+      if (!vendaValida(o)) return;
       if (!o.dataEntrega) return;
       const d = fromISO(o.dataEntrega);
       if (Number.isNaN(d.getTime()) || d > end) return;
@@ -1741,17 +1600,6 @@ export default function RelatoriosPanel() {
     ].filter((d) => d.value > 0);
   }, [estatisticasCliente, contagemPedidosClienteAteFim]);
 
-  const clientesPorBairro = useMemo(() => {
-    const totals = {};
-    estatisticasCliente.forEach((c) => {
-      const key = c.bairro || "Sem bairro";
-      totals[key] = (totals[key] || 0) + 1;
-    });
-    return Object.entries(totals)
-      .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  }, [estatisticasCliente]);
 
   /* -------- Ranking de Clientes: pode ser ordenado por faturamento ou
      por quantidade de pedidos (respeita o período selecionado, igual ao
@@ -1774,9 +1622,25 @@ export default function RelatoriosPanel() {
 
   const periodLabel = `${toBRDate(toISO(start))} – ${toBRDate(toISO(end))}`;
 
+  if (carregando || tentandoNovamente || erro) return (
+    <main className="mx-auto max-w-7xl px-6 py-8">
+      <h1 className="text-3xl font-bold text-slate-900">Relatórios</h1>
+      <div className="mt-6 rounded-xl border bg-white p-4" role={erro && !tentandoNovamente ? "alert" : "status"}>
+        {erro && !tentandoNovamente ? <>
+          Não foi possível carregar os dados. {erro}
+          <button className="ml-3 text-blue-600" onClick={async () => {
+            setTentandoNovamente(true);
+            try { await recarregar(); } finally { setTentandoNovamente(false); }
+          }}>Tentar novamente</button>
+        </> : "Carregando relatórios…"}
+      </div>
+    </main>
+  );
+
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
-      <ResumoFinanceiroPedidos dataInicio={toISO(start)} dataFim={toISO(end)} />
+      <ResumoFinanceiroPedidos resumoFornecido={resumo} />
+      {pedidos.some((pedido) => !pedido.fotografia && !pedido.dataEntrega) && <p className="mb-5 text-sm text-amber-700">{pedidos.filter((pedido) => !pedido.fotografia && !pedido.dataEntrega).length} registros legados sem agendamento reconciliado não compõem os cálculos por período.</p>}
       {/* Título + controles */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -1831,12 +1695,13 @@ export default function RelatoriosPanel() {
                   </div>
                   <button
                     onClick={() => {
-                      if (customRange.start && customRange.end) {
+                      if (customRange.start && customRange.end && customRange.start <= customRange.end) {
+                        setIntervaloAplicado({ ...customRange });
                         setPreset("custom");
                         setShowCalendar(false);
                       }
                     }}
-                    disabled={!customRange.start || !customRange.end}
+                    disabled={!customRange.start || !customRange.end || customRange.start > customRange.end}
                     className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Aplicar
@@ -1999,18 +1864,7 @@ export default function RelatoriosPanel() {
             )}
           </div>
 
-          {showsChart("Faturamento por Bairro") && (
-            <div className="mt-6">
-              <ChartCard title="Faturamento por Bairro">
-                <HorizontalBarList
-                  data={faturamentoPorBairro}
-                  color="#6366f1"
-                  formatValue={formatBRL}
-                  emptyLabel="Nenhum pedido com bairro no período selecionado"
-                />
-              </ChartCard>
-            </div>
-          )}
+
 
           {showsChart("Histórico Comparativo por Categoria (Mensal)") && (
             <div className="mt-6">
@@ -2074,7 +1928,6 @@ export default function RelatoriosPanel() {
             !showsChart("Top Produtos por Quantidade") &&
             !showsChart("Vendas por Categoria") &&
             !showsChart("Pedidos por Horário") &&
-            !showsChart("Faturamento por Bairro") &&
             !showsChart("Histórico Comparativo por Categoria (Mensal)") &&
             !showsChart("Detalhamento por Produto") && (
               <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -2108,13 +1961,7 @@ export default function RelatoriosPanel() {
             )}
           </div>
 
-          {showsChart("Clientes por Bairro") && (
-            <div className="mt-6">
-              <ChartCard title="Clientes por Bairro">
-                <WeekdayBarChart data={clientesPorBairro} unitLabel="cliente" />
-              </ChartCard>
-            </div>
-          )}
+
 
           {showsChart("Ranking de Clientes") && (
             <div className="mt-6">
@@ -2187,7 +2034,6 @@ export default function RelatoriosPanel() {
 
           {!showsChart("Top 10 Clientes por Faturamento") &&
             !showsChart("Clientes Recorrentes vs Único Pedido") &&
-            !showsChart("Clientes por Bairro") &&
             !showsChart("Ranking de Clientes") && (
               <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <BarChart3 size={36} className="mb-3 text-slate-300" strokeWidth={1.5} />
@@ -2213,7 +2059,7 @@ export default function RelatoriosPanel() {
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {showsChart("Recebimentos por Forma de Pagamento") && (
-              <ChartCard title="Recebimentos por Forma de Pagamento">
+              <ChartCard title="Recebimentos por Forma de Pagamento" subtitle="Recebimentos brutos, antes dos estornos; período do agendamento">
                 <GraficoDonutCategoria
                   data={faturamentoPorFormaPagamento}
                   emptyLabel="Nenhum pagamento no período selecionado"
@@ -2271,23 +2117,12 @@ export default function RelatoriosPanel() {
             </div>
           )}
 
-          {showsChart("Entregas por Bairro") && (
-            <div className="mt-6">
-              <ChartCard title="Entregas por Bairro">
-                <HorizontalBarList
-                  data={entregasPorBairro}
-                  color="#14b8a6"
-                  formatValue={(v) => String(v)}
-                  emptyLabel="Nenhuma entrega no período selecionado"
-                />
-              </ChartCard>
-            </div>
-          )}
+
 
           {!showsChart("Distribuição de Status") &&
             !showsChart("Entrega vs Retirada") &&
             !showsChart("Pedidos por Horário de Entrega") &&
-            !showsChart("Entregas por Bairro") && (
+            (
               <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <BarChart3 size={36} className="mb-3 text-slate-300" strokeWidth={1.5} />
                 <p className="text-slate-400">Nenhum gráfico encontrado para "{busca}"</p>

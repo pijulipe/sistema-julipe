@@ -1,5 +1,7 @@
 # Contexto Oficial do Projeto — JULIPE
 
+> Relatórios: correções aprovadas e implementadas localmente em 21/09/2026. Combos são vendas próprias (sem decomposição), cancelados não entram em faturamento/ticket/recorrência, e recebimentos brutos, estornos e líquidos seguem o agendamento do pedido. Consulte `documentacao_bd/11_pendencias_relatorios_2026-09-16.md` para decisões finais, validação e limitações. Design e CSV preservados; sem alterações remotas.
+
 > Produção: melhorias aprovadas em 16/09/2026 e implementadas localmente, com validação final em 21/09/2026. Consulte `documentacao_bd/12_producao_2026-09-16.md` para decisões, escopo, evidências e limitações. O painel preserva o design original e utiliza Pedidos persistidos; não é mais descrito pelo estado antigo de protótipo abaixo. Nenhuma implantação ou alteração remota foi realizada nesta entrega.
 
 > Diretriz visual confirmada pelo usuário: preservar o design existente no Git (layout, cores, espaçamentos e estilo dos componentes). Campos e ações necessários às novas funcionalidades podem ser acrescentados seguindo o mesmo padrão. Não redesenhar telas sem solicitação explícita.
