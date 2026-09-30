@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutGrid,
   ShoppingCart,
@@ -459,6 +459,31 @@ function WeekdayBarChart({ data, unitLabel = "pedido" }) {
 /* ---------------------------------------------------------
    Funil de Pedidos — barras horizontais por status
 --------------------------------------------------------- */
+function DicaBarra({ children }) {
+  const elemento = useRef(null);
+  const [alinharDentro, setAlinharDentro] = useState(false);
+
+  useLayoutEffect(() => {
+    const ajustar = () => {
+      const dica = elemento.current;
+      const barra = dica.parentElement.getBoundingClientRect();
+      setAlinharDentro(barra.right + 8 + dica.offsetWidth > document.documentElement.clientWidth - 8);
+    };
+    ajustar();
+    window.addEventListener("resize", ajustar);
+    return () => window.removeEventListener("resize", ajustar);
+  }, [children]);
+
+  return (
+    <div
+      ref={elemento}
+      className={`pointer-events-none absolute top-1/2 z-10 -translate-y-1/2 whitespace-nowrap rounded-xl bg-slate-900 px-3 py-1.5 text-xs text-white shadow-lg ${alinharDentro ? "right-0" : "left-full ml-2"}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 function StatusFunnelChart({ data }) {
   const [hoverIdx, setHoverIdx] = useState(null);
   const ready = useEnterAnimation(data);
@@ -491,9 +516,9 @@ function StatusFunnelChart({ data }) {
                   }}
                 />
                 {isHover && (
-                  <div className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-xl bg-slate-900 px-3 py-1.5 text-xs text-white shadow-lg">
+                  <DicaBarra>
                     {d.value} pedido{d.value !== 1 ? "s" : ""}
-                  </div>
+                  </DicaBarra>
                 )}
               </div>
             </div>
@@ -559,9 +584,9 @@ function HorizontalBarList({ data, color = "#f59e0b", formatValue = (v) => Strin
                   }}
                 />
                 {isHover && (
-                  <div className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-xl bg-slate-900 px-3 py-1.5 text-xs text-white shadow-lg">
+                  <DicaBarra>
                     {formatValue(d.value)}
-                  </div>
+                  </DicaBarra>
                 )}
               </div>
             </div>
@@ -1751,7 +1776,7 @@ export default function RelatoriosPanel() {
 
       {/* Abas + busca */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-        <nav className="flex items-center gap-6">
+        <nav className="flex flex-wrap items-center gap-6">
           {tabs.map(({ key, label, icon: Icon, clickable }) => {
             const isActive = key === tab;
             return (
