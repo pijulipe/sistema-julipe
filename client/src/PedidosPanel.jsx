@@ -15,6 +15,7 @@ import {
   ChefHat,
   PackageCheck,
   PackageSearch,
+  Printer,
 } from "lucide-react";
 import { usePedidos } from "./PedidosContext";
 import DetalhesPedido from "./DetalhesPedido.jsx";
@@ -96,7 +97,7 @@ const paymentStatusMeta = {
 /* ---------------------------------------------------------
    Main component
 --------------------------------------------------------- */
-export default function PedidosPanel({ onNovoPedido = () => {} }) {
+export default function PedidosPanel({ onNovoPedido = () => {}, onImprimirPedido = () => {} }) {
   const { pedidos, atualizarPedido, carregando, erro } = usePedidos();
 
   const [selectedDate, setSelectedDate] = useState(todayISO());
@@ -305,6 +306,7 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
               showDate={showHistory}
               onEdit={() => setPedidoEmEdicao(pedido)}
               onDetails={() => setDetalhe(pedido.id)}
+              onPrint={() => onImprimirPedido(pedido)}
               onViewImage={setLightboxImage}
             />
           ))}
@@ -335,7 +337,7 @@ export default function PedidosPanel({ onNovoPedido = () => {} }) {
 /* ---------------------------------------------------------
    Linha de pedido — usada tanto na lista do dia quanto no histórico
 --------------------------------------------------------- */
-function PedidoRow({ pedido, isLast, showDate, onEdit, onDetails, onViewImage }) {
+function PedidoRow({ pedido, isLast, showDate, onEdit, onDetails, onPrint, onViewImage }) {
   const meta = obterStatusPedido(pedido);
   const payMeta =
     paymentStatusMeta[pedido.statusPagamento] || paymentStatusMeta.pendente;
@@ -409,6 +411,15 @@ function PedidoRow({ pedido, isLast, showDate, onEdit, onDetails, onViewImage })
           {formatBRL(pedido.total)}
         </span>
         <button onClick={onDetails} className="text-xs font-semibold text-blue-600 hover:underline">Detalhes</button>
+        <button
+          type="button"
+          onClick={onPrint}
+          className="text-slate-400 transition-colors hover:text-blue-600"
+          aria-label={`Imprimir pedido #${pedido.id}`}
+          title="Imprimir pedido"
+        >
+          <Printer size={16} />
+        </button>
         <button
           disabled={["entregue", "cancelado"].includes(pedido.status) || pedido.legado}
           onClick={onEdit}
