@@ -28,10 +28,14 @@ Object.assign(process.env, {
 });
 const { prisma } = await import("../src/database/prisma.js");
 const identidades = [];
+const expedicaoVisual = process.argv.includes("--expedicao");
 for (const [nome, perfilAcesso] of [["Gerente", "GERENTE"], ["Atendente", "ATENDENTE"], ["Produção", "ATENDENTE"]]) {
   const email = nome === "Produção" ? "producao@teste.invalid" : `${nome.toLowerCase()}@teste.invalid`;
   const usuario = await prisma.usuario.create({ data: { nome: `${nome} de teste`, email, perfilAcesso, idAutenticacaoSupabase: randomUUID(), permissoesFuncionario: { create: (nome === "Produção" ? ["PRODUCAO"] : ["PEDIDOS", "CLIENTES"]).map((modulo) => ({ modulo })) } } });
   identidades.push(usuario);
+}
+if (expedicaoVisual) {
+  identidades.push(await prisma.usuario.create({ data: { nome: "Expedição de teste", email: "expedicao@teste.invalid", perfilAcesso: "ATENDENTE", idAutenticacaoSupabase: randomUUID(), permissoesFuncionario: { create: { modulo: "EXPEDICAO" } } } }));
 }
 const categorias = await Promise.all(["Bolos", "Doces", "Salgados", "Bebidas", "Congelados", "Festas"].map((nome_categoria) => prisma.categorias.create({ data: { nome_categoria } })));
 await prisma.produtos.create({ data: { nome: "Coxinha", id_categoria: categorias[2].id_categoria, preco_unitario: "20", multiplo_minimo: 25 } });

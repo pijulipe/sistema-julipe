@@ -24,6 +24,9 @@ export function exigirModuloPedido(usuario) {
 }
 export function autorizarStatus(usuario, anterior, novo) {
   if (["ENTREGUE", "CANCELADO"].includes(anterior)) throw new ErroAplicacao("Reabra o pedido antes de mudar o status.", 409);
+  if (anterior === "EM_ROTA" && ["RECEBIDO", "EM_PRODUCAO", "PRONTO"].includes(novo) && usuario.perfilAcesso !== "GERENTE") {
+    throw new ErroAplicacao("Somente gerente pode retornar um pedido de Expedição.", 403);
+  }
   if (novo === "CANCELADO") {
     exigirModuloPedido(usuario);
     if (!usuario.podeCancelarPedido && usuario.perfilAcesso !== "GERENTE") throw new ErroAplicacao("Cancelamento não autorizado.", 403);

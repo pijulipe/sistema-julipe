@@ -1,5 +1,7 @@
 # Contexto Oficial do Projeto — JULIPE
 
+> Expedição: evolução implementada e validada localmente em 29/09/2026. Recorte pelo agendamento no dia de São Paulo, quatro contadores, consulta dos concluídos e retornos exclusivos do gerente no backend. Consulte `documentacao_bd/13_expedicao_2026-09-29.md` para entrega, testes e limitações. As decisões abaixo prevalecem sobre descrições anteriores de retornos de Expedição. Design preservado; nenhuma alteração remota.
+
 > Relatórios: correções aprovadas e implementadas localmente em 21/09/2026. Combos são vendas próprias (sem decomposição), cancelados não entram em faturamento/ticket/recorrência, e recebimentos brutos, estornos e líquidos seguem o agendamento do pedido. Consulte `documentacao_bd/11_pendencias_relatorios_2026-09-16.md` para decisões finais, validação e limitações. Design e CSV preservados; sem alterações remotas.
 
 > Produção: melhorias aprovadas em 16/09/2026 e implementadas localmente, com validação final em 21/09/2026. Consulte `documentacao_bd/12_producao_2026-09-16.md` para decisões, escopo, evidências e limitações. O painel preserva o design original e utiliza Pedidos persistidos; não é mais descrito pelo estado antigo de protótipo abaixo. Nenhuma implantação ou alteração remota foi realizada nesta entrega.
@@ -520,6 +522,25 @@ npm run prisma:validar
 ```
 
 `banco:testar` consulta a conexão sem alterar dados. Nunca registrar o conteúdo do `.env`.
+
+---
+
+# Expedição — decisões confirmadas em 29/09/2026
+
+Esta seção registra as decisões aprovadas, implementadas localmente em 29/09/2026 conforme `documentacao_bd/13_expedicao_2026-09-29.md`. Prevalece sobre descrições anteriores de liberdade de retorno quando se tratar das ações de Expedição.
+
+- A Expedição utiliza os pedidos persistidos pela API de Pedidos. Não criar armazenamento paralelo nem contadores em memória como fonte definitiva.
+- O recorte é o dia atual em `America/Sao_Paulo`, comparado com a data agendada para entrega ou retirada. Não usar a data em que a conclusão foi registrada. Pedidos agendados para outros dias não entram neste recorte.
+- Exibir contadores de Prontos, Em rota, Entregues e Retirados. São quantidades por estado atual dos pedidos agendados para o dia, não totais cumulativos de eventos. Ao avançar ou retornar, atualizar os contadores correspondentes sem duplicidade.
+- Entregues e retirados continuam consultáveis e contabilizados no dia agendado após sair da fila ativa, inclusive após recarregar a página. `ENTREGUE` com tipo `RETIRADA` é apresentado como Retirado; não criar novo status persistido.
+- Acrescentar visualização dos concluídos do dia seguindo os componentes e o padrão visual existentes. A fila ativa continua mostrando Prontos e Em rota; cancelados não entram nos quatro contadores nem nas listas deste escopo.
+- Somente gerente executa retornos de Expedição, inclusive `EM_ROTA` → `PRONTO`. A restrição deve ser validada no backend, inclusive quando o usuário também possui `PEDIDOS`, e não apenas pela visibilidade dos botões.
+- Entregues e retirados somente podem ser reabertos pelo gerente, por meio do fluxo existente, retornando para `EM_PRODUCAO`. Não permitir retorno direto desses concluídos para Pronto ou Em rota. Preservar auditoria, versões e regras existentes de reabertura.
+- Os avanços existentes de saída para entrega, entrega e retirada continuam disponíveis aos usuários autorizados. Esta decisão não restringe os retornos internos já aprovados de Produção nem amplia poderes de edição, cancelamento ou pagamento.
+- Preservar layout, cores, espaçamentos, tipografia e estilo dos componentes. Acrescentar apenas os controles necessários; não redesenhar a tela.
+- Limitar a implementação a estas regras e aos tratamentos de carregamento, erro, andamento e conflito necessários para tornar suas consultas e ações confiáveis. Preservar atualização periódica, revisão concorrente e persistência existentes.
+- Não incluir entregadores, taxa de entrega, mapas, otimização de rotas, estoque, novos bloqueios financeiros, filtros de outros períodos ou mudanças funcionais em outros módulos. Não executar migrações, alterações de RLS/Storage ou implantação remota nesta entrega.
+- Organizar a implementação em tarefas e informar o progresso, as verificações e eventuais impedimentos. Validar datas, contadores, consulta de concluídos, permissões no backend, retornos, reabertura, persistência e regressões dos fluxos relacionados.
 
 ---
 

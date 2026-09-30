@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   Truck,
@@ -10,6 +10,9 @@ import {
   ClipboardList,
   CheckCircle2,
 } from "lucide-react";
+import FormularioPedido from "./FormularioPedido.jsx";
+import { dataOperacao } from "./utils/producao.js";
+import { resumirExpedicao, filtrarExpedicao } from "./utils/expedicao.js";
 import { usePedidos } from "./PedidosContext";
 import { MiniaturaImagemReferencia, LightboxReferencia } from "./FotosReferencia";
 
@@ -22,10 +25,9 @@ const formatBRL = (value) =>
     currency: "BRL",
   });
 
-const todayISO = () => new Date().toISOString().split("T")[0];
-
-function formatToday() {
-  const raw = new Date().toLocaleDateString("pt-BR", {
+function formatToday(hoje) {
+  const raw = new Date(`${hoje}T12:00:00Z`).toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
     weekday: "long",
     day: "2-digit",
     month: "long",
@@ -40,67 +42,37 @@ function formatToday() {
    Main component
 --------------------------------------------------------- */
 export default function ExpedicaoPanel() {
-  const { pedidos, concluirPedido, marcarEntregue } = usePedidos();
+  const { pedidos, acesso, carregando, erro, recarregar, executar } = usePedidos();
   const [busca, setBusca] = useState("");
   const [imagemLightbox, setLightboxImage] = useState(null);
+  const [hoje, setHoje] = useState(dataOperacao);
+  const [visualizacao, setVisualizacao] = useState("ativos");
+  const [reabrindo, setReabrindo] = useState(null);
+  const [ocupados, setOcupados] = useState({});
+  const [erroAcao, setErroAcao] = useState("");
+  const emAndamento = useRef(new Set());
+  const gerente = acesso?.perfilAcesso === "GERENTE";
 
-  const today = todayISO();
+  useEffect(() => {
+    const atualizarDia = () => setHoje(dataOperacao());
+    const temporizador = setInterval(atualizarDia, 1000);
+    window.addEventListener("focus", atualizarDia);
+    document.addEventListener("visibilitychange", atualizarDia);
+    return () => {
+      clearInterval(temporizador);
+      window.removeEventListener("focus", atualizarDia);
+      document.removeEventListener("visibilitychange", atualizarDia);
+    };
+  }, []);
 
-  const topedidosDoDia = useMemo(
-    () => pedidos.filter((o) => o.dataEntrega === today),
-    [pedidos, today]
-  );
-
-  // Pedidos que já saíram da produção (pronto) até serem finalizados
-  // (entregue/retirado). Uma vez finalizados, saem automaticamente
-  // desta tela e também não aparecem mais como "Pronto" na Produção.
-  const pedidosAtivos = useMemo(
-    () =>
-      topedidosDoDia.filter(
-        (o) => o.status === "pronto" || o.status === "em_rota"
-      ),
-    [topedidosDoDia]
-  );
-
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    if (!q) return pedidosAtivos;
-    return pedidosAtivos.filter(
-      (o) =>
-        o.cliente?.nome?.toLowerCase().includes(q) ||
-        (o.cliente?.telefone || "").includes(q) ||
-        (o.bairro || o.cliente?.bairro || "")
-          .toLowerCase()
-          .includes(q)
-    );
-  }, [pedidosAtivos, busca]);
-
-  const filtradosOrdenados = useMemo(
-    () =>
-      [...filtrados].sort((a, b) =>
-        (a.horarioEntrega || "").localeCompare(b.horarioEntrega || "")
-      ),
-    [filtrados]
-  );
-
-  const stats = useMemo(() => {
-    const prontos = topedidosDoDia.filter((o) => o.status === "pronto").length;
-    const emRota = topedidosDoDia.filter((o) => o.status === "em_rota").length;
-    const entregas = topedidosDoDia.filter(
-      (o) =>
-        o.tipoEntrega !== "retirada" &&
-        (o.status === "pronto" || o.status === "em_rota")
-    ).length;
-    const retiradas = topedidosDoDia.filter(
-      (o) => o.tipoEntrega === "retirada" && o.status === "pronto"
-    ).length;
-    return { prontos, emRota, entregas, retiradas };
-  }, [topedidosDoDia]);
+  const { ativos: pedidosAtivos, concluidos, contadores: stats } = useMemo(() => resumirExpedicao(pedidos, hoje), [pedidos, hoje]);
+  const ativosFiltrados = useMemo(() => filtrarExpedicao(pedidosAtivos, busca), [pedidosAtivos, busca]);
+  const filtradosOrdenados = useMemo(() => visualizacao === "ativos" ? ativosFiltrados : filtrarExpedicao(concluidos, busca), [visualizacao, ativosFiltrados, concluidos, busca]);
 
   // Roteiro de entregas: agrupa apenas pedidos de entrega (não retirada),
   // já que pedidos de retirada não têm endereço a ser roteirizado.
   const gruposRota = useMemo(() => {
-    const pedidosEntrega = filtradosOrdenados.filter(
+    const pedidosEntrega = ativosFiltrados.filter(
       (o) => o.tipoEntrega !== "retirada"
     );
     const groups = [];
@@ -117,33 +89,52 @@ export default function ExpedicaoPanel() {
       group.pedidos.push(pedido);
     });
     return groups;
-  }, [filtradosOrdenados]);
+  }, [ativosFiltrados]);
 
-  const handleAcaoPrincipal = (pedido) => {
-    if (pedido.status === "pronto") {
-      concluirPedido(pedido.id);
-    } else if (pedido.status === "em_rota") {
-      marcarEntregue(pedido.id);
+  async function agir(pedido, status) {
+    if (emAndamento.current.has(pedido.id)) return;
+    emAndamento.current.add(pedido.id);
+    setOcupados((atuais) => ({ ...atuais, [pedido.id]: true }));
+    setErroAcao("");
+    try {
+      await executar(pedido.id, "status", { status, revisao: pedido.revisao });
+    } catch (falha) {
+      setErroAcao(`Pedido #${pedido.id}: ${falha.status === 409 ? "Pedido alterado por outra operação. Consulte os dados atualizados antes de tentar novamente." : falha.message}`);
+    } finally {
+      emAndamento.current.delete(pedido.id);
+      setOcupados((atuais) => ({ ...atuais, [pedido.id]: false }));
     }
-  };
+  }
+
+  const handleAcaoPrincipal = (pedido) => agir(pedido, pedido.status === "em_rota" || pedido.tipoEntrega === "retirada" ? "ENTREGUE" : "EM_ROTA");
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-900">Expedição</h1>
         <p className="mt-1 text-slate-500">
-          {formatToday()} • {pedidosAtivos.length} pedido
-          {pedidosAtivos.length !== 1 ? "s" : ""} prontos
+          {formatToday(hoje)}{!carregando && !erro && ` • ${pedidosAtivos.length} pedido${pedidosAtivos.length !== 1 ? "s" : ""} na fila ativa`}
         </p>
       </div>
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Prontos" value={stats.prontos} />
-        <StatCard label="Em Rota" value={stats.emRota} />
-        <StatCard label="Entregas" value={stats.entregas} />
-        <StatCard label="Retiradas" value={stats.retiradas} />
+        <StatCard label="Prontos" value={carregando || erro ? "—" : stats.prontos} />
+        <StatCard label="Em Rota" value={carregando || erro ? "—" : stats.emRota} />
+        <StatCard label="Entregues" value={carregando || erro ? "—" : stats.entregues} />
+        <StatCard label="Retirados" value={carregando || erro ? "—" : stats.retirados} />
       </div>
+
+      <div className="mb-6 flex flex-wrap gap-3">
+        {[["ativos", "Fila ativa"], ["concluidos", "Entregues e retirados"]].map(([chave, rotulo]) => (
+          <button key={chave} aria-pressed={visualizacao === chave} onClick={() => setVisualizacao(chave)} className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${visualizacao === chave ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>{rotulo}</button>
+        ))}
+      </div>
+      {(erro || erroAcao) && <div role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+        {erroAcao || `Não foi possível atualizar os pedidos: ${erro}`}
+        <button className="ml-3 underline" onClick={recarregar}>Consultar estado atualizado</button>
+      </div>}
+      {carregando && <p role="status" className="mb-4 text-sm text-slate-500">Carregando pedidos...</p>}
 
       {/* Busca */}
       <div className="mb-6">
@@ -161,13 +152,11 @@ export default function ExpedicaoPanel() {
         </div>
       </div>
 
-      {filtradosOrdenados.length === 0 ? (
+      {carregando || (erro && filtradosOrdenados.length === 0) ? null : filtradosOrdenados.length === 0 ? (
         <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
           <Truck size={40} className="mb-3 text-slate-300" strokeWidth={1.5} />
           <p className="text-slate-400">
-            {pedidosAtivos.length === 0
-              ? "Nenhum pedido pronto para expedição hoje"
-              : "Nenhum pedido encontrado"}
+            {busca.trim() ? "Nenhum pedido encontrado" : visualizacao === "ativos" ? "Nenhum pedido pronto para expedição hoje" : "Nenhum pedido entregue ou retirado hoje"}
           </p>
         </div>
       ) : (
@@ -177,7 +166,7 @@ export default function ExpedicaoPanel() {
             <div className="mb-3 flex items-center gap-2">
               <ClipboardList size={18} className="text-slate-500" />
               <h2 className="text-base font-semibold text-slate-900">
-                Pedidos Prontos
+                {visualizacao === "ativos" ? "Pedidos Prontos" : "Entregues e Retirados"}
               </h2>
             </div>
             <div className="space-y-4">
@@ -187,6 +176,9 @@ export default function ExpedicaoPanel() {
                   pedido={pedido}
                   onAction={() => handleAcaoPrincipal(pedido)}
                   onViewImage={setLightboxImage}
+                  ocupado={ocupados[pedido.id]}
+                  onRetornar={gerente && pedido.status === "em_rota" ? () => agir(pedido, "PRONTO") : null}
+                  onReabrir={gerente && pedido.status === "entregue" ? () => setReabrindo(pedido) : null}
                 />
               ))}
             </div>
@@ -250,6 +242,7 @@ export default function ExpedicaoPanel() {
         </div>
       )}
 
+      {reabrindo && <FormularioPedido pedido={reabrindo} reabrindo onClose={() => setReabrindo(null)} />}
       <LightboxReferencia
         imagem={imagemLightbox}
         onClose={() => setLightboxImage(null)}
@@ -273,9 +266,10 @@ function StatCard({ label, value }) {
 /* ---------------------------------------------------------
    Card de pedido pronto para expedição
 --------------------------------------------------------- */
-function CardPedidoExpedicao({ pedido, onAction, onViewImage }) {
+function CardPedidoExpedicao({ pedido, onAction, onViewImage, ocupado, onRetornar, onReabrir }) {
   const isRetirada = pedido.tipoEntrega === "retirada";
   const isEmRota = pedido.status === "em_rota";
+  const concluido = pedido.status === "entregue";
 
   // O ícone de caminhão fica reservado para o que de fato roda de veículo
   // (saiu para entrega / entregue). Retirada, feita pelo próprio cliente
@@ -298,7 +292,9 @@ function CardPedidoExpedicao({ pedido, onAction, onViewImage }) {
         className: "bg-blue-600 hover:bg-blue-700",
       };
 
-  const statusStyle = isEmRota
+  const statusStyle = concluido
+    ? { label: isRetirada ? "Retirado" : "Entregue", bg: "#dcfce7", text: "#16a34a" }
+    : isEmRota
     ? { label: "Em Rota", bg: "#e0e7ff", text: "#4338ca" }
     : { label: "Pronto", bg: "#dcfce7", text: "#16a34a" };
 
@@ -356,13 +352,16 @@ function CardPedidoExpedicao({ pedido, onAction, onViewImage }) {
         ))}
       </div>
 
-      <button
+      {!concluido && <button
+        disabled={ocupado}
         onClick={onAction}
-        className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white transition-colors ${actionConfig.className}`}
+        className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white transition-colors disabled:opacity-50 ${actionConfig.className}`}
       >
         <actionConfig.icon size={15} />
-        {actionConfig.label}
-      </button>
+        {ocupado ? "Salvando..." : actionConfig.label}
+      </button>}
+      {onRetornar && <button disabled={ocupado} onClick={onRetornar} className="mt-3 w-full rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Voltar para Pronto</button>}
+      {onReabrir && <button onClick={onReabrir} className="mt-3 w-full rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Revisar e reabrir em produção</button>}
     </div>
   );
 }

@@ -259,6 +259,68 @@ test("Pedidos com PostgreSQL descartável: migração, persistência e concorrê
         await prisma.$disconnect();
       }
     });
+    await t.test("Expedição persiste avanços, retornos autorizados, reabertura, auditoria e conflitos pela API", async () => {
+      const { app } = await import("../src/app.js");
+      const { prisma } = await import("../src/database/prisma.js");
+      const servidor = await new Promise((resolver) => { const instancia = app.listen(0, "127.0.0.1", () => resolver(instancia)); });
+      const idOperador = randomUUID();
+      await cliente.usuario.create({ data: { idUsuario: idOperador, nome: "Expedição de teste", email: "expedicao@teste.invalid", idAutenticacaoSupabase: randomUUID(), perfilAcesso: "ATENDENTE", permissoesFuncionario: { create: { modulo: "EXPEDICAO" } } } });
+      const token = jwt.sign({ sub: idOperador, perfilAcesso: "GERENTE" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+      const tokenGerente = jwt.sign({ sub: idUsuario, perfilAcesso: "GERENTE" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+      const consultar = (caminho, corpo, credencial = token) => fetch(`http://127.0.0.1:${servidor.address().port}/api/pedidos${caminho}`, { method: corpo ? "POST" : "GET", headers: { Authorization: `Bearer ${credencial}`, "Content-Type": "application/json" }, ...(corpo && { body: JSON.stringify(corpo) }) });
+      try {
+        let venda = await criar();
+        const agir = async (status, credencial = token, revisao = venda.revisao) => consultar(`/${venda.idPedido}/status`, { chaveOperacao: randomUUID(), revisao, status }, credencial);
+        for (const status of ["PRONTO", "EM_ROTA"]) {
+          const resposta = await agir(status);
+          assert.equal(resposta.status, 200);
+          venda = (await resposta.json()).dados;
+        }
+        for (const modulos of [["EXPEDICAO"], ["PEDIDOS"], ["PEDIDOS", "EXPEDICAO"]]) {
+          await cliente.permissaoFuncionario.deleteMany({ where: { idUsuario: idOperador } });
+          await cliente.permissaoFuncionario.createMany({ data: modulos.map((modulo) => ({ idUsuario: idOperador, modulo })) });
+          assert.equal((await agir("PRONTO")).status, 403);
+          assert.equal((await servico.buscar(venda.idPedido, gerente)).status, "EM_ROTA");
+        }
+        const revisaoAntiga = venda.revisao;
+        const retorno = await agir("PRONTO", tokenGerente);
+        assert.equal(retorno.status, 200);
+        venda = (await retorno.json()).dados;
+        assert.equal((await agir("EM_ROTA", tokenGerente, revisaoAntiga)).status, 409);
+        const eventos = await repository.historico(venda.idPedido);
+        assert.ok(eventos.some((evento) => evento.nomeAutor === gerente.nome && evento.dados.anterior === "EM_ROTA" && evento.dados.novo === "PRONTO"));
+        await cliente.permissaoFuncionario.deleteMany({ where: { idUsuario: idOperador } });
+        await cliente.permissaoFuncionario.create({ data: { idUsuario: idOperador, modulo: "EXPEDICAO" } });
+        for (const status of ["EM_ROTA", "ENTREGUE"]) {
+          const resposta = await agir(status);
+          assert.equal(resposta.status, 200);
+          venda = (await resposta.json()).dados;
+        }
+        for (let consulta = 0; consulta < 2; consulta++) {
+          const painel = await consultar("/painel");
+          assert.equal(painel.status, 200);
+          assert.equal((await painel.json()).dados.find((p) => p.idPedido === venda.idPedido).status, "ENTREGUE");
+        }
+        for (const status of ["PRONTO", "EM_ROTA"]) assert.equal((await agir(status, tokenGerente)).status, 409);
+        const corpo = { chaveOperacao: randomUUID(), revisao: venda.revisao };
+        assert.equal((await consultar(`/${venda.idPedido}/reabertura`, corpo)).status, 403);
+        const reabertura = await consultar(`/${venda.idPedido}/reabertura`, corpo, tokenGerente);
+        assert.equal(reabertura.status, 200);
+        assert.equal((await reabertura.json()).dados.status, "EM_PRODUCAO");
+        assert.equal((await servico.buscar(venda.idPedido, gerente)).status, "EM_PRODUCAO");
+        assert.ok((await repository.historico(venda.idPedido)).some((e) => e.acao === "REABRIR" && e.dados.novo === "EM_PRODUCAO"));
+        const retirada = await criar({ tipoEntrega: "RETIRADA", endereco: {} });
+        const pronta = await servico.executar("status", retirada.idPedido, { chaveOperacao: randomUUID(), revisao: retirada.revisao, status: "PRONTO" }, gerente);
+        const resposta = await consultar(`/${pronta.idPedido}/status`, { chaveOperacao: randomUUID(), revisao: pronta.revisao, status: "ENTREGUE" });
+        assert.equal(resposta.status, 200);
+        const concluida = (await resposta.json()).dados;
+        assert.equal(concluida.fotografia.tipoEntrega, "RETIRADA");
+        assert.equal((await servico.buscar(pronta.idPedido, gerente)).status, "ENTREGUE");
+      } finally {
+        await new Promise((resolver) => servidor.close(resolver));
+        await prisma.$disconnect();
+      }
+    });
     await t.test("autorização inicial vincula gerente, solicitante, valores e chave da operação", async () => {
       const { AutorizacaoPedidoService } = await import("../src/services/autorizacaoPedidoService.js");
       const autorizacoes = new AutorizacaoPedidoService(process.env.JWT_SECRET);
