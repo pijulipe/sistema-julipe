@@ -161,17 +161,17 @@ export default function PedidosPanel({ onNovoPedido = () => {}, onImprimirPedido
   const paginaAtual = Math.min(pagina, Math.max(1, Math.ceil(listToRender.length / 20)));
   const itensPagina = listToRender.slice((paginaAtual - 1) * 20, paginaAtual * 20);
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Título + ações */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Pedidos</h1>
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Pedidos</h1>
           <p className="mt-1 text-slate-500">
             {pedidos.length} pedido{pedidos.length !== 1 ? "s" : ""} no total
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setShowHistory((s) => !s)}
             className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors ${
@@ -234,7 +234,7 @@ export default function PedidosPanel({ onNovoPedido = () => {}, onImprimirPedido
             className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
-          <div className="ml-auto flex items-center gap-4 text-sm text-slate-500">
+          <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
             <span>
               {dayStats.count} pedido{dayStats.count !== 1 ? "s" : ""}
             </span>
@@ -348,7 +348,7 @@ function PedidoRow({ pedido, isLast, showDate, onEdit, onDetails, onPrint, onVie
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 px-6 py-4 ${
+      className={`flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 ${
         !isLast ? "border-b border-slate-100" : ""
       }`}
     >
@@ -382,18 +382,18 @@ function PedidoRow({ pedido, isLast, showDate, onEdit, onDetails, onPrint, onVie
             ) : (
               <span className="flex min-w-0 items-center gap-1 text-xs font-normal text-slate-400">
                 <MapPin size={12} className="shrink-0" />
-                <span className="max-w-[220px] truncate">{pedido.endereco}</span>
+                <span className="max-w-[160px] truncate sm:max-w-[220px]">{pedido.endereco}</span>
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="max-w-[420px] truncate">{itemsLabel}</span>
+            <span className="max-w-[240px] truncate sm:max-w-[420px]">{itemsLabel}</span>
             <FotosReferenciaBadge images={imagemReferencias} onOpen={onViewImage} />
           </div>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
         <span
           className="rounded-full px-2.5 py-1 text-xs font-semibold"
           style={{ backgroundColor: payMeta.bg, color: payMeta.text }}

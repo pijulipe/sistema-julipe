@@ -109,9 +109,9 @@ export default function ExpedicaoPanel() {
   const handleAcaoPrincipal = (pedido) => agir(pedido, pedido.status === "em_rota" || pedido.tipoEntrega === "retirada" ? "ENTREGUE" : "EM_ROTA");
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-900">Expedição</h1>
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Expedição</h1>
         <p className="mt-1 text-slate-500">
           {formatToday(hoje)}{!carregando && !erro && ` • ${pedidosAtivos.length} pedido${pedidosAtivos.length !== 1 ? "s" : ""} na fila ativa`}
         </p>

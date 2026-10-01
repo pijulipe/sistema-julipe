@@ -51,7 +51,7 @@ function getStatus(quantidade, threshold) {
   return "ok";
 }
 
-const GRID_COLS = "grid-cols-[2fr_1fr_1.3fr_1fr_1.6fr]";
+const GRID_COLS = "min-w-[860px] grid-cols-[2fr_1fr_1.3fr_1fr_1.6fr]";
 
 export default function EstoquePanel() {
   const { produtos } = useProdutos();
@@ -99,9 +99,9 @@ export default function EstoquePanel() {
     }, [produtos, obterEstoque]);
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-900">Estoque</h1>
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Estoque</h1>
         <p className="mt-1 text-slate-500">Controle de produtos acabados</p>
       </div>
 
@@ -162,7 +162,7 @@ export default function EstoquePanel() {
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {abasFiltro.map((f) => (
             <button
               key={f.key}
@@ -194,7 +194,7 @@ export default function EstoquePanel() {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
           <div
             className={`grid ${GRID_COLS} gap-4 border-b border-slate-100 px-6 py-3 text-sm text-slate-400`}
           >

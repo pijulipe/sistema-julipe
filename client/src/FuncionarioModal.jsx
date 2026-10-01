@@ -222,7 +222,7 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Perfil de Acesso
                 </label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {PERFIS_ACESSO.map((p) => (
                     <button
                       key={p.key}
@@ -278,7 +278,7 @@ export default function FuncionarioModal({ mode, idUsuario, onClose }) {
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Perfil de Acesso
                 </label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {PERFIS_ACESSO.map((p) => (
                     <button
                       key={p.key}

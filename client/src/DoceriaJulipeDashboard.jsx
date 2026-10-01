@@ -123,17 +123,17 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
   ];
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Title row */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
             Doceria Julipe
           </h1>
           <p className="mt-1 text-slate-500">{formatToday()}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {acesso?.perfilAcesso === "GERENTE" &&           <button
             onClick={() => setShowSettings((s) => !s)}
             className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
@@ -159,8 +159,8 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
       <AlertasCapacidadePedidos />
 
       {/* Stats bar */}
-      <div className="mb-8 rounded-2xl border border-slate-100 bg-white px-8 py-5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-14 gap-y-4">
+      <div className="mb-8 rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-8 sm:py-5">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-4 sm:gap-x-14">
           {stats.map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className="flex items-center gap-3">
               <div
@@ -212,13 +212,13 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
             return (
               <div
                 key={pedido.id}
-                className={`flex items-center justify-between px-6 py-4 ${
+                className={`flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 ${
                   idx !== sortedToday.length - 1
                     ? "border-b border-slate-100"
                     : ""
                 }`}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex min-w-0 items-center gap-4">
                   <span className="flex items-center gap-1 text-sm text-slate-400">
                     <Clock size={14} /> {pedido.horarioEntrega}
                   </span>
@@ -235,7 +235,7 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   {pedido.tipoEntrega === "retirada" && (
                     <span className="flex items-center gap-1 text-xs text-slate-400">
                       <Store size={13} /> Retirada

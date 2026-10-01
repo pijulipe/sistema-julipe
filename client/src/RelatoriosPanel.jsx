@@ -1648,8 +1648,8 @@ export default function RelatoriosPanel() {
   const periodLabel = `${toBRDate(toISO(start))} – ${toBRDate(toISO(end))}`;
 
   if (carregando || tentandoNovamente || erro) return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
-      <h1 className="text-3xl font-bold text-slate-900">Relatórios</h1>
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Relatórios</h1>
       <div className="mt-6 rounded-xl border bg-white p-4" role={erro && !tentandoNovamente ? "alert" : "status"}>
         {erro && !tentandoNovamente ? <>
           Não foi possível carregar os dados. {erro}
@@ -1663,13 +1663,13 @@ export default function RelatoriosPanel() {
   );
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <ResumoFinanceiroPedidos resumoFornecido={resumo} />
       {pedidos.some((pedido) => !pedido.fotografia && !pedido.dataEntrega) && <p className="mb-5 text-sm text-amber-700">{pedidos.filter((pedido) => !pedido.fotografia && !pedido.dataEntrega).length} registros legados sem agendamento reconciliado não compõem os cálculos por período.</p>}
       {/* Título + controles */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Relatórios</h1>
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Relatórios</h1>
           <p className="mt-1 text-slate-500">
             {totalPedidos} pedido{totalPedidos !== 1 ? "s" : ""} no período selecionado
             <span className="text-slate-300"> • </span>

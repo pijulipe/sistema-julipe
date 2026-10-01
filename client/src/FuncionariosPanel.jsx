@@ -58,11 +58,11 @@ export default function FuncionariosPanel() {
 
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Título + Novo Funcionário */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Funcionários</h1>
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Funcionários</h1>
           <p className="mt-1 text-slate-500">
             {paginacao.total} funcionário{paginacao.total !== 1 ? "s" : ""}{" "}
             cadastrado{paginacao.total !== 1 ? "s" : ""}
