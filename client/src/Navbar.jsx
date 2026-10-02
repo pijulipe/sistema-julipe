@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 /* A logo fica em public/julipe-logo.png (PNG com fundo transparente). */
-const LOGO = "../public/julipe-logo-branca.png";
+const LOGO = "/julipe-logo-branca.png";
 
 const inicio = { key: "home", label: "Início", icon: LayoutGrid };
 

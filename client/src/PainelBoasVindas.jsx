@@ -1,8 +1,8 @@
 import React from "react";
 
 /* Logos em public/: a branca é para o painel colorido, a original para fundos claros. */
-const LOGO_BRANCA = "../public/julipe-logo-branca.png";
-const LOGO = "../public/julipe-logo.png";
+const LOGO_BRANCA = "/julipe-logo-branca.png";
+const LOGO = "/julipe-logo.png";
 
 /* ---------------------------------------------------------
    Painel esquerdo de identidade visual, compartilhado pelas
