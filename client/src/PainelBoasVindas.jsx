@@ -1,5 +1,8 @@
 import React from "react";
-import { Cake } from "lucide-react";
+
+/* Logos em public/: a branca é para o painel colorido, a original para fundos claros. */
+const LOGO_BRANCA = "../public/julipe-logo-branca.png";
+const LOGO = "../public/julipe-logo.png";
 
 /* ---------------------------------------------------------
    Painel esquerdo de identidade visual, compartilhado pelas
@@ -30,12 +33,7 @@ export default function PainelBoasVindas({
       <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
 
       <div className="relative flex h-full min-h-screen flex-col justify-between p-10 xl:p-14">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
-            <Cake size={22} className="text-white" />
-          </div>
-          <span className="text-lg font-bold text-white">Doceria Julipe</span>
-        </div>
+        <img src={LOGO_BRANCA} alt="Doceria Julipe — Fabricando sabores" className="h-16 w-auto self-start" />
 
         <div className="max-w-md">
           <h2 className="text-4xl font-bold leading-tight text-white xl:text-5xl">
@@ -55,11 +53,8 @@ export default function PainelBoasVindas({
 /** Versão compacta da marca, exibida no topo do formulário só em telas pequenas (onde o painel acima fica oculto). */
 export function MarcaCompacta() {
   return (
-    <div className="mb-8 flex items-center justify-center gap-2 lg:hidden">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600">
-        <Cake size={18} className="text-white" />
-      </div>
-      <span className="text-base font-bold text-slate-900">Doceria Julipe</span>
+    <div className="mb-8 flex items-center justify-center lg:hidden">
+      <img src={LOGO} alt="Doceria Julipe — Fabricando sabores" className="h-14 w-auto" />
     </div>
   );
 }

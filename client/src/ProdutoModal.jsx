@@ -21,7 +21,7 @@ export default function ProdutoModal({ mode, produto, onClose, onSave, onRequest
   const { categorias } = useProdutos();
   const [dados, setDados] = useState(() => produto ? {
     nome: produto.nome,
-    idCategoria: produto.categoria.idCategoria,
+    idCategoria: produto.categoriaDados.idCategoria,
     unidadeMedida: produto.unidadeMedida,
     multiploMinimo: String(produto.multiploMinimo),
     precoUnitario: String(produto.precoUnitario),
@@ -83,7 +83,7 @@ export default function ProdutoModal({ mode, produto, onClose, onSave, onRequest
   if (mode === "view" && produto) return <Janela onClose={onClose} titulo={produto.nome}>
     {produto.imagemUrl && <img src={produto.imagemUrl} alt={produto.nome} className="h-40 w-full rounded-xl object-cover" />}
     <div className="space-y-3 text-sm">
-      <Linha rotulo="Categoria" valor={produto.categoria.nome} />
+      <Linha rotulo="Categoria" valor={produto.categoria} />
       <Linha rotulo="Unidade" valor={produto.unidadeMedida} />
       <Linha rotulo="Unidades por pacote" valor={produto.multiploMinimo} />
       <Linha rotulo="Preço" valor={Number(produto.precoUnitario).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} />
@@ -109,12 +109,12 @@ export default function ProdutoModal({ mode, produto, onClose, onSave, onRequest
     <Campo rotulo="Descrição"><textarea rows="3" value={dados.descricao} onChange={alterar("descricao")} className="entrada resize-none" /></Campo>
     {categoria?.permiteImagem && <Campo rotulo="Foto do produto">
       <div className="flex items-center gap-3">{dados.imagemUrl ? <img src={dados.imagemUrl} alt="Prévia" className="h-20 w-20 rounded-xl object-cover" /> : <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-dashed text-slate-300"><ImageIcon /></div>}
-        <label className="cursor-pointer rounded-xl border px-4 py-2 text-sm font-semibold text-slate-600">Escolher foto<input type="file" accept="image/png,image/jpeg,image/webp" onChange={selecionarImagem} className="hidden" /></label>
+        <label className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 cursor-pointer">Escolher foto<input type="file" accept="image/png,image/jpeg,image/webp" onChange={selecionarImagem} className="hidden" /></label>
         {(dados.caminhoImagem || dados.arquivoImagem) && <button type="button" onClick={() => setDados((atual) => ({ ...atual, caminhoImagem: null, imagemUrl: null, arquivoImagem: null }))} className="text-sm text-red-600">Remover</button>}
       </div><p className="mt-1 text-xs text-slate-400">PNG, JPG/JPEG ou WebP, até 5 MB.</p>
     </Campo>}
-    <button type="button" onClick={() => setDados((atual) => ({ ...atual, ativo: !atual.ativo }))} className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${dados.ativo ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}><Check size={15} />{dados.ativo ? "Ativo para venda" : "Inativo"}</button>
-    <div className="flex gap-3"><button onClick={onClose} className="flex-1 rounded-xl border py-3 text-sm font-semibold">Cancelar</button><button onClick={salvar} disabled={salvando} className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white disabled:opacity-50">{salvando ? "Salvando..." : "Salvar"}</button></div>
+    <button type="button" onClick={() => setDados((atual) => ({ ...atual, ativo: !atual.ativo }))} className={`inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm ${dados.ativo ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}><Check size={15} />{dados.ativo ? "Ativo para venda" : "Inativo"}</button>
+    <div className="flex gap-3"><button onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-3 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 flex-1">Cancelar</button><button onClick={salvar} disabled={salvando} className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white disabled:opacity-50">{salvando ? "Salvando..." : "Salvar"}</button></div>
   </Janela>;
 }
 

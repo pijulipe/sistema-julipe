@@ -46,7 +46,7 @@ export default function CadastroPanel({
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-fundo">
       <PainelBoasVindas />
 
       <div className="flex flex-1 items-center justify-center px-6 py-12">
@@ -65,7 +65,7 @@ export default function CadastroPanel({
             <button
               type="button"
               onClick={onEntrarComGoogle}
-              className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-3 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 w-full"
             >
               <IconeGoogle />
               Continuar com Google

@@ -34,7 +34,7 @@ export default function LoginPanel({
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-fundo">
       <PainelBoasVindas />
 
       <div className="flex flex-1 items-center justify-center px-6 py-12">

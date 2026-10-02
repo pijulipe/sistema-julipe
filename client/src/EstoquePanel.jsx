@@ -167,11 +167,7 @@ export default function EstoquePanel() {
             <button
               key={f.key}
               onClick={() => setFiltroCategoria(f.key)}
-              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
-                filtroCategoria === f.key
-                  ? "bg-blue-600 text-white"
-                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm ${filtroCategoria === f.key ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}
             >
               {f.label}
             </button>
@@ -299,14 +295,14 @@ function LinhaEstoque({ produto, isLast }) {
         <button
           onClick={() => ajustarQuantidade(produto.id, -1)}
           disabled={quantidade <= 0}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 h-9 w-9 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
           aria-label="Diminuir 1 unidade"
         >
           <ChevronDown size={15} />
         </button>
         <button
           onClick={() => ajustarQuantidade(produto.id, 1)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 h-9 w-9 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
           aria-label="Aumentar 1 unidade"
         >
           <ChevronUp size={15} />

@@ -1664,8 +1664,6 @@ export default function RelatoriosPanel() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-      <ResumoFinanceiroPedidos resumoFornecido={resumo} />
-      {pedidos.some((pedido) => !pedido.fotografia && !pedido.dataEntrega) && <p className="mb-5 text-sm text-amber-700">{pedidos.filter((pedido) => !pedido.fotografia && !pedido.dataEntrega).length} registros legados sem agendamento reconciliado não compõem os cálculos por período.</p>}
       {/* Título + controles */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -1681,11 +1679,7 @@ export default function RelatoriosPanel() {
           <div className="relative">
             <button
               onClick={() => setShowCalendar((v) => !v)}
-              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
-                preset === "custom"
-                  ? "border-blue-600 bg-blue-50 text-blue-600"
-                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-              }`}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 h-10 w-10 text-sm ${preset === "custom" ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}
               aria-label="Selecionar período personalizado"
               title="Período personalizado"
             >
@@ -1740,11 +1734,8 @@ export default function RelatoriosPanel() {
             <button
               key={p.key}
               onClick={() => setPreset(p.key)}
-              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
-                preset === p.key
-                  ? "bg-blue-600 text-white"
-                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
+              aria-pressed={preset === p.key}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm ${preset === p.key ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}
             >
               {p.label}
             </button>
@@ -1754,45 +1745,48 @@ export default function RelatoriosPanel() {
 
           <button
             onClick={() => exportarPedidosCSV(pedidosFiltrados)}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
           >
             <Download size={15} /> CSV
           </button>
           <button
             onClick={() => exportarPedidosCSV(pedidosFiltrados)}
             title="Gera um .csv pronto para importar no Google Sheets"
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
           >
             <FileSpreadsheet size={15} /> Sheets
           </button>
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
           >
             <Printer size={15} /> Imprimir
           </button>
         </div>
       </div>
 
+      <ResumoFinanceiroPedidos resumoFornecido={resumo} className="mb-6" />
+      {pedidos.some((pedido) => !pedido.fotografia && !pedido.dataEntrega) && <p className="mb-5 text-sm text-amber-700">{pedidos.filter((pedido) => !pedido.fotografia && !pedido.dataEntrega).length} registros legados sem agendamento reconciliado não compõem os cálculos por período.</p>}
+
       {/* Abas + busca */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-        <nav className="flex flex-wrap items-center gap-6">
-          {tabs.map(({ key, label, icon: Icon, clickable }) => {
-            const isActive = key === tab;
-            return (
+        <nav aria-label="Seções do relatório" className="flex flex-wrap items-center gap-2">
+          {tabs.map(({ key, label, icon: Icon, clickable }, indice) => (
+            <React.Fragment key={key}>
+              {indice > 0 && <span aria-hidden="true" className="hidden h-6 w-px bg-slate-200 sm:block" />}
               <button
-                key={key}
-                onClick={() => clickable && setTab(key)}
+                type="button"
+                aria-pressed={key === tab}
+                disabled={!clickable}
+                onClick={() => setTab(key)}
                 title={!clickable ? "Em breve" : undefined}
-                className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                  isActive ? "font-semibold text-blue-600" : "text-slate-500 hover:text-slate-700"
-                } ${!clickable ? "cursor-default opacity-50 hover:text-slate-500" : ""}`}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm ${key === tab ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}
               >
                 <Icon size={16} />
                 {label}
               </button>
-            );
-          })}
+            </React.Fragment>
+          ))}
         </nav>
 
         <div className="relative w-full max-w-xs">
@@ -1995,22 +1989,14 @@ export default function RelatoriosPanel() {
                   <button
                     type="button"
                     onClick={() => setOrdenacaoRankingClientes("faturamento")}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      ordenacaoRankingClientes === "faturamento"
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                    }`}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-3 py-1.5 text-xs ${ordenacaoRankingClientes === "faturamento" ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}
                   >
                     Maior Faturamento
                   </button>
                   <button
                     type="button"
                     onClick={() => setOrdenacaoRankingClientes("pedidos")}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      ordenacaoRankingClientes === "pedidos"
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                    }`}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-3 py-1.5 text-xs ${ordenacaoRankingClientes === "pedidos" ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}
                   >
                     Mais Pedidos
                   </button>

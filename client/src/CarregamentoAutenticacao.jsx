@@ -1,6 +1,6 @@
 export default function CarregamentoAutenticacao() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-fundo">
       <div
         className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"
         role="status"

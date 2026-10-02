@@ -164,7 +164,7 @@ export default function ClienteModal({ mode, cliente, onClose, onSave }) {
           <button
             onClick={onClose}
             disabled={salvando}
-            className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-3 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 flex-1"
           >
             Cancelar
           </button>

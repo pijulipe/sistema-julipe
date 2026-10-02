@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   ShoppingBag,
-  TrendingUp,
+  Factory,
   CheckCircle2,
   DollarSign,
   AlertCircle,
@@ -10,9 +10,8 @@ import {
   Clock,
   Truck,
   Store,
-  Settings,
+  AlarmClock,
   ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import { usePedidos } from "./PedidosContext";
 
@@ -21,6 +20,7 @@ import { usePedidos } from "./PedidosContext";
 import ConfiguracaoPedidosPanel from "./ConfiguracaoPedidosPanel.jsx";
 import ResumoFinanceiroPedidos from "./ResumoFinanceiroPedidos.jsx";
 import AlertasCapacidadePedidos from "./AlertasCapacidadePedidos.jsx";
+import BarraIndicadores from "./BarraIndicadores.jsx";
 
 
 import {
@@ -92,34 +92,10 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
   );
 
   const stats = [
-    {
-      label: "Pedidos Hoje",
-      value: String(topedidosDoDia.length),
-      icon: ShoppingBag,
-      color: "#2563eb",
-      bg: "#eff6ff",
-    },
-    {
-      label: "Em Produção",
-      value: String(emProducaoCount),
-      icon: TrendingUp,
-      color: "#ea580c",
-      bg: "#fff7ed",
-    },
-    {
-      label: "Prontos",
-      value: String(prontosCount),
-      icon: CheckCircle2,
-      color: "#16a34a",
-      bg: "#f0fdf4",
-    },
-    {
-      label: "Faturamento",
-      value: formatBRL(faturamento),
-      icon: DollarSign,
-      color: "#9333ea",
-      bg: "#faf5ff",
-    },
+    { label: "Pedidos Hoje", value: String(topedidosDoDia.length), icon: ShoppingBag, color: "#2563eb" },
+    { label: "Em Produção", value: String(emProducaoCount), icon: Factory, color: "#ea580c" },
+    { label: "Prontos", value: String(prontosCount), icon: CheckCircle2, color: "#16a34a" },
+    { label: "Faturamento", value: formatBRL(faturamento), icon: DollarSign, color: "#9333ea" },
   ];
 
   return (
@@ -130,18 +106,22 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
             Doceria Julipe
           </h1>
-          <p className="mt-1 text-slate-500">{formatToday()}</p>
+          <p className="mt-1 text-sm text-slate-500">{formatToday()}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {acesso?.perfilAcesso === "GERENTE" &&           <button
-            onClick={() => setShowSettings((s) => !s)}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            <Settings size={16} />
-            Horários & Alertas
-            {showSettings ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          </button>}
+          {acesso?.perfilAcesso === "GERENTE" && (
+            <button
+              onClick={() => setShowSettings((s) => !s)}
+              aria-haspopup="dialog"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-3 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+                <AlarmClock size={14} aria-hidden="true" />
+              </span>
+              Horários & Alertas
+            </button>
+          )}
           <button
             onClick={onNovoPedido}
             className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition-colors hover:bg-blue-700"
@@ -152,38 +132,33 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
         </div>
       </div>
 
-      {showSettings && acesso?.perfilAcesso === "GERENTE" && <ConfiguracaoPedidosPanel />}
-      {erro && <p role="alert" className="bg-red-50 p-3 text-red-700">{erro}</p>}
-      {carregando && <p>Carregando pedidos…</p>}
-      <details className="mb-4 text-sm text-slate-500"><summary className="cursor-pointer">Recebimentos, estornos e excedentes</summary><div className="mt-3"><ResumoFinanceiroPedidos dataInicio={today} dataFim={today} /></div></details>
+      {showSettings && acesso?.perfilAcesso === "GERENTE" && <ConfiguracaoPedidosPanel onClose={() => setShowSettings(false)} />}
+      {erro && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-red-700">{erro}</p>}
+      {carregando && <p className="mb-4 text-sm text-slate-500">Carregando pedidos…</p>}
       <AlertasCapacidadePedidos />
 
-      {/* Stats bar */}
-      <div className="mb-8 rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-8 sm:py-5">
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-4 sm:gap-x-14">
-          {stats.map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} className="flex items-center gap-3">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-lg"
-                style={{ backgroundColor: bg }}
-              >
-                <Icon size={20} style={{ color }} />
-              </div>
-              <div>
-                <div className="text-xl font-bold leading-tight text-slate-900">
-                  {value}
-                </div>
-                <div className="text-sm text-slate-500">{label}</div>
-              </div>
-            </div>
-          ))}
+      {/* Indicadores do dia */}
+      <BarraIndicadores itens={stats} />
+
+      {/* Financeiro de hoje (recolhível, aberto por padrão) */}
+      <details open className="group mb-8">
+        <summary className="flex w-fit cursor-pointer list-none items-center gap-2 text-sm font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
+          <ChevronDown
+            size={15}
+            aria-hidden="true"
+            className="-rotate-90 transition-transform group-open:rotate-0"
+          />
+          Financeiro de Hoje
+        </summary>
+        <div className="mt-3">
+          <ResumoFinanceiroPedidos dataInicio={today} dataFim={today} className="mb-0" />
         </div>
-      </div>
+      </details>
 
       {/* Section header */}
       <div className="mb-3 flex items-center gap-2">
-        <AlertCircle size={18} className="text-amber-500" />
-        <h2 className="text-base font-semibold text-slate-900">
+        <AlertCircle size={20} className="text-amber-500" />
+        <h2 className="text-lg font-bold text-slate-900">
           Pedidos de Hoje
         </h2>
         <span className="text-sm text-slate-400">
@@ -202,7 +177,7 @@ export default function DoceriaJulipeDashboard({ onNovoPedido = () => {} }) {
           <p className="text-slate-400">Nenhum pedido para hoje</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
           {sortedToday.map((pedido, idx) => {
             const meta = obterStatusPedido(pedido);
             const itemsLabel = pedido.itens

@@ -195,7 +195,7 @@ export default function FuncionariosPanel() {
             type="button"
             onClick={() => mudarPagina(paginacao.pagina - 1)}
             disabled={paginacao.pagina <= 1}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
           >
             Anterior
           </button>
@@ -206,7 +206,7 @@ export default function FuncionariosPanel() {
             type="button"
             onClick={() => mudarPagina(paginacao.pagina + 1)}
             disabled={paginacao.pagina >= paginacao.totalPaginas}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
           >
             Próxima
           </button>

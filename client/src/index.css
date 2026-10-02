@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@theme {
+  --color-fundo: #EEF2F8;
+}
+
 @utility entrada {
   width: 100%;
   border-radius: 0.75rem;
@@ -8,6 +12,21 @@
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
   color: var(--color-slate-700);
+}
+
+/* Tailwind v4: "border" sem cor vira currentColor (linha preta). Define um padrão suave. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-slate-200);
+  }
+}
+
+body {
+  background-color: var(--color-fundo);
 }
 
 button:not(:disabled),

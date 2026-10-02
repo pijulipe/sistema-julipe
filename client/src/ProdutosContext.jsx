@@ -16,6 +16,7 @@ function adaptarProduto(produto) {
     ...produto,
     id: Number(produto.idProduto),
     categoria: produto.categoria.nome,
+    categoriaDados: produto.categoria,
     preco: produto.precoUnitario,
     unidade: produto.unidadeMedida,
     unidadesPorPacote: produto.multiploMinimo,
