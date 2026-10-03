@@ -5,8 +5,9 @@ import { requisitarApi } from "./services/apiService.js";
 
 const dias = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const modulos = ["PEDIDOS", "PRODUCAO", "PRODUTO", "COMBOS", "RELATORIO", "CLIENTES", "ESTOQUE", "EXPEDICAO", "FUNCIONARIOS"];
-const campo = "rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500";
+const campo = "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500";
 const campoPequeno = "w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500";
+const botaoSec = "inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800";
 const caixa = "h-4 w-4 rounded accent-slate-800";
 const horas = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, "0"));
 const novoCargo = () => ({ nome: "", modulos: [], podeCancelarPedido: null, limiteDesconto: "0", limiteEstorno: "0", ativo: true });
@@ -18,12 +19,20 @@ function CampoHorario({ valor, rotulo, onChange }) {
   const minutos = ["00", "15", "30", "45"];
   if (!minutos.includes(minuto)) minutos.push(minuto);
   const seletor = "cursor-pointer appearance-none bg-transparent text-center focus:outline-none";
-  return <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus-within:ring-2 focus-within:ring-blue-500">
+  return <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus-within:ring-2 focus-within:ring-blue-500">
     <Clock size={14} className="text-slate-500" aria-hidden="true" />
-    <select aria-label={`${rotulo} — hora`} className={seletor} value={h} onChange={(e) => onChange(`${e.target.value}:${minuto}`)}>{horas.map((v) => <option key={v}>{v}</option>)}</select>
-    <span aria-hidden="true">:</span>
-    <select aria-label={`${rotulo} — minuto`} className={seletor} value={minuto} onChange={(e) => onChange(`${h}:${e.target.value}`)}>{minutos.map((v) => <option key={v}>{v}</option>)}</select>
+    <span className="flex items-center">
+      <select aria-label={`${rotulo} — hora`} className={seletor} value={h} onChange={(e) => onChange(`${e.target.value}:${minuto}`)}>{horas.map((v) => <option key={v}>{v}</option>)}</select>
+      <span aria-hidden="true">:</span>
+      <select aria-label={`${rotulo} — minuto`} className={seletor} value={minuto} onChange={(e) => onChange(`${h}:${e.target.value}`)}>{minutos.map((v) => <option key={v}>{v}</option>)}</select>
+    </span>
+    <Clock size={14} className="text-slate-800" aria-hidden="true" />
   </div>;
+}
+
+/* Rótulo acima do campo: mantém tudo alinhado em colunas. */
+function Campo({ rotulo, children }) {
+  return <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-600">{rotulo}{children}</label>;
 }
 
 function Secao({ titulo, children }) {
@@ -107,50 +116,56 @@ export default function ConfiguracaoPedidosPanel({ onClose = () => {} }) {
       <fieldset disabled={ocupado} className="min-w-0 space-y-6">
         <div>
           <h3 className="mb-3 text-sm font-semibold text-slate-900">Expediente</h3>
-          <div className="space-y-2">{config.expediente.map((dia) => <div key={dia.diaSemana} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-xl bg-slate-50 px-4 py-2.5">
-            <label className="flex items-center gap-2 text-sm text-slate-800 sm:justify-self-center"><input type="checkbox" className={caixa} checked={dia.aberto} onChange={(e) => alterarDia(dia, { aberto: e.target.checked })} />{dias[dia.diaSemana]}</label>
-            <CampoHorario rotulo={`Início ${dias[dia.diaSemana]}`} valor={dia.inicio} onChange={(v) => alterarDia(dia, { inicio: v })} />
-            <CampoHorario rotulo={`Fim ${dias[dia.diaSemana]}`} valor={dia.fim} onChange={(v) => alterarDia(dia, { fim: v })} />
+          <div className="space-y-2">{config.expediente.map((dia) => <div key={dia.diaSemana} className="grid grid-cols-3 items-center gap-3 rounded-xl bg-slate-50 px-4 py-2.5">
+            <label className="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" className={caixa} checked={dia.aberto} onChange={(e) => alterarDia(dia, { aberto: e.target.checked })} />{dias[dia.diaSemana]}</label>
+            <div className="justify-self-center"><CampoHorario rotulo={`Início ${dias[dia.diaSemana]}`} valor={dia.inicio} onChange={(v) => alterarDia(dia, { inicio: v })} /></div>
+            <div className="justify-self-end"><CampoHorario rotulo={`Fim ${dias[dia.diaSemana]}`} valor={dia.fim} onChange={(v) => alterarDia(dia, { fim: v })} /></div>
           </div>)}</div>
         </div>
 
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Limite por categoria por hora</h3>
           <p className="mb-3 text-xs text-slate-400">Vazio significa sem limite</p>
-          <div className="flex flex-wrap gap-2">{categorias.map((c) => <label key={c.idCategoria} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{c.nome}<input type="number" min="0" className={campoPequeno} value={limiteDe(c)} onChange={(e) => alterarLimite(c, e.target.value)} /></label>)}</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{categorias.map((c) => <label key={c.idCategoria} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{c.nome}<input type="number" min="0" className={campoPequeno} value={limiteDe(c)} onChange={(e) => alterarLimite(c, e.target.value)} /></label>)}</div>
         </div>
 
         <Secao titulo="Cargos e limites">
-          <div className="flex flex-wrap items-center gap-2">
-            <select aria-label="Cargo" className={campo} value={cargo.idCargo ?? ""} onChange={(e) => setCargo(e.target.value ? config.cargos.find((c) => c.idCargo === Number(e.target.value)) : novoCargo())}><option value="">Novo cargo</option>{config.cargos.map((c) => <option key={c.idCargo} value={c.idCargo}>{c.nome}</option>)}</select>
-            <input className={`${campo} min-w-0 flex-1`} placeholder="Nome do cargo" value={cargo.nome} onChange={(e) => setCargo({ ...cargo, nome: e.target.value })} />
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" className={caixa} checked={cargo.ativo} onChange={(e) => setCargo({ ...cargo, ativo: e.target.checked })} />Ativo</label>
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_1.6fr_auto]">
+            <Campo rotulo="Cargo"><select className={campo} value={cargo.idCargo ?? ""} onChange={(e) => setCargo(e.target.value ? config.cargos.find((c) => c.idCargo === Number(e.target.value)) : novoCargo())}><option value="">Novo cargo</option>{config.cargos.map((c) => <option key={c.idCargo} value={c.idCargo}>{c.nome}</option>)}</select></Campo>
+            <Campo rotulo="Nome do cargo"><input className={campo} placeholder="Nome do cargo" value={cargo.nome} onChange={(e) => setCargo({ ...cargo, nome: e.target.value })} /></Campo>
+            <label className="flex h-[42px] items-center gap-2 text-sm text-slate-700"><input type="checkbox" className={caixa} checked={cargo.ativo} onChange={(e) => setCargo({ ...cargo, ativo: e.target.checked })} />Ativo</label>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-700">{modulos.map((m) => <label key={m} className="flex items-center gap-2"><input type="checkbox" className={caixa} checked={cargo.modulos.includes(m)} onChange={(e) => setCargo({ ...cargo, modulos: e.target.checked ? [...cargo.modulos, m] : cargo.modulos.filter((atual) => atual !== m) })} />{m}</label>)}</div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-700">
-            <label className="flex items-center gap-2">Desconto (%)<input className={`${campo} w-24`} type="number" min="0" max="100" step="0.01" value={cargo.limiteDesconto} onChange={(e) => setCargo({ ...cargo, limiteDesconto: e.target.value })} /></label>
-            <label className="flex items-center gap-2">Estorno acumulado por pagamento (R$)<input className={`${campo} w-28`} type="number" min="0" step="0.01" value={cargo.limiteEstorno} onChange={(e) => setCargo({ ...cargo, limiteEstorno: e.target.value })} /></label>
-            <label className="flex items-center gap-2">Cancelar<select className={campo} value={String(cargo.podeCancelarPedido)} onChange={(e) => setCargo({ ...cargo, podeCancelarPedido: e.target.value === "null" ? null : e.target.value === "true" })}><option value="null">Padrão do perfil</option><option value="true">Permitir</option><option value="false">Negar</option></select></label>
+          <div>
+            <p className="mb-2 text-xs font-medium text-slate-600">Módulos com acesso</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-700 sm:grid-cols-3">{modulos.map((m) => <label key={m} className="flex items-center gap-2"><input type="checkbox" className={caixa} checked={cargo.modulos.includes(m)} onChange={(e) => setCargo({ ...cargo, modulos: e.target.checked ? [...cargo.modulos, m] : cargo.modulos.filter((atual) => atual !== m) })} />{m}</label>)}</div>
           </div>
-          <button type="button" disabled={!cargo.nome.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800" onClick={() => salvar("/api/configuracoes-pedidos/cargos", "POST", cargo)}>Salvar cargo</button>
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
+            <Campo rotulo="Desconto (%)"><input className={campo} type="number" min="0" max="100" step="0.01" value={cargo.limiteDesconto} onChange={(e) => setCargo({ ...cargo, limiteDesconto: e.target.value })} /></Campo>
+            <Campo rotulo="Estorno acumulado por pagamento (R$)"><input className={campo} type="number" min="0" step="0.01" value={cargo.limiteEstorno} onChange={(e) => setCargo({ ...cargo, limiteEstorno: e.target.value })} /></Campo>
+            <Campo rotulo="Cancelar pedido"><select className={campo} value={String(cargo.podeCancelarPedido)} onChange={(e) => setCargo({ ...cargo, podeCancelarPedido: e.target.value === "null" ? null : e.target.value === "true" })}><option value="null">Padrão do perfil</option><option value="true">Permitir</option><option value="false">Negar</option></select></Campo>
+          </div>
+          <button type="button" disabled={!cargo.nome.trim()} className={botaoSec} onClick={() => salvar("/api/configuracoes-pedidos/cargos", "POST", cargo)}>Salvar cargo</button>
         </Secao>
 
         <Secao titulo="Cargo e exceções do funcionário">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
-            <label className="flex flex-1 items-center gap-2">Pesquisar funcionário<input className={`${campo} min-w-0 flex-1`} value={buscaFuncionario} onChange={(e) => setBuscaFuncionario(e.target.value)} /></label>
-            <select aria-label="Funcionário" className={campo} value={idFuncionario} onChange={async (e) => {
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+            <Campo rotulo="Pesquisar funcionário"><input className={campo} value={buscaFuncionario} onChange={(e) => setBuscaFuncionario(e.target.value)} /></Campo>
+            <Campo rotulo="Funcionário"><select className={campo} value={idFuncionario} onChange={async (e) => {
               setIdFuncionario(e.target.value);
               if (e.target.value) try { const retorno = await api(`/api/configuracoes-pedidos/funcionarios/${e.target.value}`); setIndividual(retorno.dados); } catch (falha) { setErro(falha.message); }
-            }}><option value="">Selecione funcionário</option>{funcionarios.map((f) => <option key={f.idUsuario} value={f.idUsuario}>{f.nome}</option>)}</select>
+            }}><option value="">Selecione funcionário</option>{funcionarios.map((f) => <option key={f.idUsuario} value={f.idUsuario}>{f.nome}</option>)}</select></Campo>
           </div>
-          {idFuncionario && <div className="space-y-3 text-sm text-slate-700">
-            <label className="flex items-center gap-2">Cargo<select className={campo} value={individual.idCargo || ""} onChange={(e) => setIndividual({ ...individual, idCargo: e.target.value ? Number(e.target.value) : null })}><option value="">Sem cargo</option>{config.cargos.map((c) => <option key={c.idCargo} value={c.idCargo}>{c.nome}</option>)}</select></label>
-            <div className="flex flex-wrap gap-3">{modulos.map((m) => <label key={m} className="flex flex-col gap-1 text-xs">{m}<select className={campo} value={String(individual.excecoesModulos[m] ?? "herdar")} onChange={(e) => { const excecoes = { ...individual.excecoesModulos }; if (e.target.value === "herdar") delete excecoes[m]; else excecoes[m] = e.target.value === "true"; setIndividual({ ...individual, excecoesModulos: excecoes }); }}><option value="herdar">Herdar</option><option value="true">Conceder</option><option value="false">Negar</option></select></label>)}</div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <label className="flex items-center gap-2">Cancelar<select className={campo} value={String(individual.cancelamentoIndividual)} onChange={(e) => setIndividual({ ...individual, cancelamentoIndividual: e.target.value === "null" ? null : e.target.value === "true" })}><option value="null">Herdar</option><option value="true">Permitir</option><option value="false">Negar</option></select></label>
-              {[["descontoIndividual", "Limite de desconto (%)"], ["estornoIndividual", "Limite de estorno (R$)"]].map(([nome, rotulo]) => <label className="flex items-center gap-2" key={nome}>{rotulo}<input className={`${campo} w-28`} placeholder="Herdar" type="number" min="0" step="0.01" value={individual[nome] ?? ""} onChange={(e) => setIndividual({ ...individual, [nome]: e.target.value || null })} /></label>)}
+          {idFuncionario && <div className="space-y-4">
+            <Campo rotulo="Cargo"><select className={campo} value={individual.idCargo || ""} onChange={(e) => setIndividual({ ...individual, idCargo: e.target.value ? Number(e.target.value) : null })}><option value="">Sem cargo</option>{config.cargos.map((c) => <option key={c.idCargo} value={c.idCargo}>{c.nome}</option>)}</select></Campo>
+            <div>
+              <p className="mb-2 text-xs font-medium text-slate-600">Exceções por módulo</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{modulos.map((m) => <Campo key={m} rotulo={m}><select className={campo} value={String(individual.excecoesModulos[m] ?? "herdar")} onChange={(e) => { const excecoes = { ...individual.excecoesModulos }; if (e.target.value === "herdar") delete excecoes[m]; else excecoes[m] = e.target.value === "true"; setIndividual({ ...individual, excecoesModulos: excecoes }); }}><option value="herdar">Herdar</option><option value="true">Conceder</option><option value="false">Negar</option></select></Campo>)}</div>
             </div>
-            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 text-sm border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800" onClick={() => salvar(`/api/configuracoes-pedidos/funcionarios/${idFuncionario}`, "PUT", individual)}>Salvar cargo e exceções</button>
+            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
+              <Campo rotulo="Cancelar pedido"><select className={campo} value={String(individual.cancelamentoIndividual)} onChange={(e) => setIndividual({ ...individual, cancelamentoIndividual: e.target.value === "null" ? null : e.target.value === "true" })}><option value="null">Herdar</option><option value="true">Permitir</option><option value="false">Negar</option></select></Campo>
+              {[["descontoIndividual", "Limite de desconto (%)"], ["estornoIndividual", "Limite de estorno (R$)"]].map(([nome, rotulo]) => <Campo key={nome} rotulo={rotulo}><input className={campo} placeholder="Herdar" type="number" min="0" step="0.01" value={individual[nome] ?? ""} onChange={(e) => setIndividual({ ...individual, [nome]: e.target.value || null })} /></Campo>)}
+            </div>
+            <button type="button" className={botaoSec} onClick={() => salvar(`/api/configuracoes-pedidos/funcionarios/${idFuncionario}`, "PUT", individual)}>Salvar cargo e exceções</button>
           </div>}
         </Secao>
       </fieldset>
